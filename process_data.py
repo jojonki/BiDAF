@@ -26,11 +26,15 @@ def load_task(dataset_path):
             # print('load', d['title'], i, '/', len(data))
             for p in d['paragraphs']:
                 c = word_tokenize(p['context'])
+                cc = [list(w) for w in c]
                 q, a = [], []
                 for qa in p['qas']:
                     q = word_tokenize(qa['question'])
+                    qc = [list(w) for w in q]
                     a = [ans['text'] for ans in qa['answers']]
-                    ret_data.append((c, qa['id'], q, a))
+                    ret_data.append((c, cc, qa['id'], q, qc, a)) # TODO context redandancy
+#                 break
+            break
     return ret_data
 
 
