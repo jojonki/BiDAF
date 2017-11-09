@@ -16,7 +16,7 @@ class CharEmbedding(nn.Module):
         self.fc1 = nn.Linear(args.out_chs*len(args.filters), 1)
         
     def forward(self, x):
-        print('x', x.size()) # (N, seq_len, word_len)
+        # print('x', x.size()) # (N, seq_len, word_len)
         bs = x.size(0)
         seq_len = x.size(1)
         word_len = x.size(2)
