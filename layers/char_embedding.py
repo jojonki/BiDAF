@@ -41,5 +41,5 @@ class CharEmbedding(nn.Module):
         # maxpool like
         # [(N, seq_len, Cout)] * len(filter_heights)
         x = [torch.sum(xx, 2) for xx in x]
-        out = torch.cat
+        out = torch.cat(x, 1)
         return out
