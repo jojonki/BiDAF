@@ -21,4 +21,3 @@ class Highway(nn.Module):
 
             x = gate * normal_layer_ret + (1 - gate) * x
         return x
-
