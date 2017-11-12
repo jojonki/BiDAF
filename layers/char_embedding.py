@@ -16,30 +16,14 @@ class CharEmbedding(nn.Module):
         self.fc1 = nn.Linear(args.out_chs*len(args.filters), 1)
         
     def forward(self, x):
-        # print('x', x.size()) # (N, seq_len, word_len)
+        # x: (N, seq_len, word_len)
+        input_shape = x.size()
         bs = x.size(0)
         seq_len = x.size(1)
         word_len = x.size(2)
-        embd = Variable(torch.zeros(bs, seq_len, self.embd_size))
-        for i, elm in enumerate(x): # every sample
-            for j, chars in enumerate(elm): # every sentence. [ [‘w’, ‘h’, ‘o’, 0], [‘i’, ‘s’, 0, 0], [‘t’, ‘h’, ‘i’, ‘s’] ]
-                chars_embd = self.embedding(chars.unsqueeze(0)) # (N, word_len, embd_size) [‘w’,‘h’,‘o’,0]
-                chars_embd = torch.sum(chars_embd, 1) # (N, embd_size). sum each char's embedding
-                embd[i,j] = chars_embd[0] # set char_embd as word-like embedding
-
-        x = embd # (N, seq_len, embd_dim)
-        x = embd.unsqueeze(1) # (N, Cin, seq_len, embd_dim), insert Channnel-In dim
-        # Conv2d
-        #    Input : (N,Cin, Hin, Win )
-        #    Output: (N,Cout,Hout,Wout) 
-        x = [F.relu(conv(x)) for conv in self.conv] # (N, Cout, seq_len, embd_dim-filter_w+1). stride == 1
+        x = x.view(-1, word_len) # (N*seq_len, word_len)
+        x = self.embedding(x) # (N*seq_len, word_len, embd_size)
+        x = x.view(*input_shape, -1) # (N, seq_len, word_len, embd_size)
+        x = x.sum(2) # (N, seq_len, embd_size)
         
-        # [(N,Cout,Hout,Wout) -> [(N,Cout,Hout*Wout)] * len(filter_heights)
-        # [(N, seq_len, embd_dim-filter_w+1, Cout)] * len(filter_heights)
-        x = [xx.view((xx.size(0), xx.size(2), xx.size(3), xx.size(1))) for xx in x]
-        
-        # maxpool like
-        # [(N, seq_len, Cout)] * len(filter_heights)
-        x = [torch.sum(xx, 2) for xx in x]
-        out = torch.cat(x, 1)
-        return out
+        return x
