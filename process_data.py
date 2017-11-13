@@ -3,6 +3,8 @@ import numpy as np
 import json
 import pickle
 from nltk.tokenize import word_tokenize
+import torch
+from torch.autograd import Variable
 
 def save_pickle(d, path):
     print('save pickle to', path)
@@ -16,6 +18,7 @@ def load_pickle(path):
 
 def load_task(dataset_path):
     ret_data = []
+    ctx_max_len = 0 # character level length
     with open(dataset_path) as f:
         data = json.load(f)
         ver = data['version']
@@ -25,6 +28,8 @@ def load_task(dataset_path):
             if i % 100 == 0: print('load_task:', i, '/', len(data))
             # print('load', d['title'], i, '/', len(data))
             for p in d['paragraphs']:
+                if len(p['context']) > ctx_max_len:
+                    ctx_max_len = len(p['context'])
                 c = word_tokenize(p['context'])
                 cc = [list(w) for w in c]
                 q, a = [], []
@@ -32,40 +37,12 @@ def load_task(dataset_path):
                     q = word_tokenize(qa['question'])
                     qc = [list(w) for w in q]
                     a = [ans['text'] for ans in qa['answers']]
-                    ret_data.append((c, cc, qa['id'], q, qc, a)) # TODO context redandancy
+                    a_beg = [ans['answer_start'] for ans in qa['answers']]
+                    a_end = [ans['answer_start'] + len(ans['text']) for ans in qa['answers']]
+                    ret_data.append((c, cc, qa['id'], q, qc, a, a_beg, a_end)) # TODO context redandancy
 #                 break
             break
-    return ret_data
-
-
-def vectorize(data, w2i, ctx_maxlen, qst_maxlen):
-    C, Q, A = [], [], []
-    for i, (context, _, question, answer) in enumerate(data):
-        if i % 10000 == 0: print('vectroize:', i, '/', len(data))
-        # not use context
-#         c = [w2i[w] for w in context if w in w2i]
-#         c = c[:ctx_maxlen]
-#         c_pad_len = max(0, ctx_maxlen - len(c))
-#         c += [0] * c_pad_len
-
-        q = [w2i[w] for w in question if w in w2i]
-        q = q[:qst_maxlen]
-        q_pad_len = max(0, qst_maxlen - len(q))
-        q += [0] * q_pad_len
-
-        y = np.zeros(len(w2i))
-        if answer[0] in w2i:
-            y[w2i[answer[0]]] = 1
-
-#         C.append(c)
-        Q.append(q)
-        A.append(y)
-    
-#     C = np.array(C)#, dtype=np.uint32)
-    Q = np.array(Q)
-    A = np.array(A, dtype='byte')
-
-    return C, Q, A
+    return ret_data, ctx_max_len
 
 def load_glove_weights(glove_dir, embd_dim, vocab_size, word_index):
     embeddings_index = {}
@@ -87,3 +64,27 @@ def load_glove_weights(glove_dir, embd_dim, vocab_size, word_index):
             embedding_matrix[i] = embedding_vector
 
     return embedding_matrix
+
+def to_var(x):
+    if torch.cuda.is_available():
+        x = x.cuda()
+    return Variable(x)
+
+def make_word_vector(data, w2i_w, query_len):
+    vec_data = []
+    for sentence in data:
+        index_vec = [w2i_w[w] for w in sentence]
+        pad_len = max(0, query_len - len(index_vec))
+        index_vec += [0] * pad_len
+        index_vec = index_vec[:query_len]
+        vec_data.append(index_vec)
+    
+    return to_var(torch.LongTensor(vec_data))
+
+def make_char_vector(data, w2i_c, query_len, word_len):
+    tmp = torch.zeros(len(data), query_len, word_len).type(torch.LongTensor)
+    for i, words in enumerate(data):
+        for j, word in enumerate(words):
+            for k, ch in enumerate(word):
+                tmp[i][j][k] = w2i_c[ch]
+    return to_var(tmp)
