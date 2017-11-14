@@ -82,7 +82,9 @@ print('ctx_word_maxlen:', ctx_word_maxlen)
 print('query_word_maxlen:', query_word_maxlen)
 
 
-glove_embd_w = torch.from_numpy(load_glove_weights('./dataset', args.embd_size, vocab_size_w, w2i_w))
+# glove_embd_w = torch.from_numpy(load_glove_weights('./dataset', args.embd_size, vocab_size_w, w2i_w))
+# save_pickle(glove_embd_w, './pickle/glove_embd_w.pickle')
+glove_embd_w = load_pickle('./pickle/glove_embd_w.pickle')
 
 # args = {
 #     'embd_size': embd_size,
@@ -128,7 +130,7 @@ model = AttentionNet(args)
 if torch.cuda.is_available():
     model.cuda()
 # print(model)
-optimizer = torch.optim.Adadelta(filter(lambda p: p.requires_grad, model.parameters()), lr=0.5)
+optimizer = torch.optim.Adadelta(filter(lambda p: p.requires_grad, model.parameters()), lr=0.5, weight_decay=0.999)
 train(model, optimizer)
 print('finish train')
 
