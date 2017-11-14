@@ -1,5 +1,6 @@
 import numpy as np
 import os
+import shutil
 import json
 from nltk.tokenize import word_tokenize
 import argparse
@@ -28,6 +29,7 @@ parser.add_argument('--w_embd_size', type=int, default=100, help='word embedding
 parser.add_argument('--c_embd_size', type=int, default=8, help='character embedding size')
 parser.add_argument('--manualSeed', type=int, help='manual seed')
 parser.add_argument('--use_pickle', type=int, default=1, help='load dataset from pickles')
+parser.add_argument('--resume', default='./checkpoints/model_best.tar', type=str, metavar='PATH', help='path saved params')
 
 args = parser.parse_args()
 
@@ -113,6 +115,12 @@ args.out_chs = 100
 args.ans_size = ctx_maxlen
 print(args)
 
+def save_checkpoint(state, is_best, filename='./checkpoints/checkpoint.pth.tar'):
+    print('save model!!!!')
+    torch.save(state, filename)
+    if is_best:
+        shutil.copyfile(filename, args.resume)
+        
 def batch_ranking(p1, p2):
     batch_size = p1.size(0)
     p1_rank, p2_rank = [], []
@@ -148,19 +156,40 @@ def train(model, optimizer, n_epoch=10, batch_size=args.batch_size):
                     p2_rank_id = p2_rank[0][rank]
                     print('Rank {}, p1_result={}, p2_result={}'.format(
                         rank+1, p1_rank_id==a_beg.data[0], p2_rank_id==a_end.data[0]))
-                
+                # TODO calc acc, save every epoch wrt acc
+                save_checkpoint({
+                    'epoch': epoch + 1,
+                    # 'arch': args.arch,
+                    'state_dict': model.state_dict(),
+                    # 'best_prec1': best_prec1,
+                    'optimizer' : optimizer.state_dict(),
+                }, True)
             model.zero_grad()
             (loss_p1+loss_p2).backward()
             optimizer.step()
+ 
 
 def test(model, batch_size=args.batch_size):
     pass
-            
+
 model = AttentionNet(args)
+optimizer = torch.optim.Adadelta(filter(lambda p: p.requires_grad, model.parameters()), lr=0.5, weight_decay=0.999)
+if os.path.isfile(args.resume):
+    print("=> loading checkpoint '{}'".format(args.resume))
+    checkpoint = torch.load(args.resume)
+    args.start_epoch = checkpoint['epoch']
+    # best_prec1 = checkpoint['best_prec1']
+    model.load_state_dict(checkpoint['state_dict'])
+    optimizer.load_state_dict(checkpoint['optimizer'])
+    print("=> loaded checkpoint '{}' (epoch {})"
+            .format(args.resume, checkpoint['epoch']))
+else:
+    print("=> no checkpoint found at '{}'".format(args.resume)) 
+
 if torch.cuda.is_available():
     model.cuda()
+
 print(model)
-optimizer = torch.optim.Adadelta(filter(lambda p: p.requires_grad, model.parameters()), lr=0.5, weight_decay=0.999)
 train(model, optimizer)
 print('finish train')
 
