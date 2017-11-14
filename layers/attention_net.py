@@ -25,7 +25,7 @@ class AttentionNet(nn.Module):
         self.ans_size = args.ans_size
         self.char_embd_net = CharEmbedding(args)
         self.word_embd_net = WordEmbedding(args)
-        self.highway_net = Highway(self.embd_size*2)# TODO check share is ok?
+        self.highway_net = Highway(self.embd_size)# TODO check share is ok?
         self.ctx_embd_layer = nn.GRU(self.embd_size*2, self.embd_size*2, bidirectional=True, dropout=0.2)
         self.W = nn.Parameter(torch.rand(3*2*2* self.embd_size, 1).type(torch.FloatTensor), requires_grad=True)
         self.modeling_layer = nn.GRU(self.embd_size*2*8, self.embd_size*2, bidirectional=True, dropout=0.2)
@@ -42,9 +42,10 @@ class AttentionNet(nn.Module):
         word_embd = self.word_embd_net(x_w) # (N, seq_len, embd_size)
         if torch.cuda.is_available():
             word_embd = word_embd.cuda()
-        # Highway Networks of 1. and 2.
+        # Highway Networks for 1. and 2.
+        char_embd = self.highway_net(char_embd)
+        word_embd = self.highway_net(word_embd)
         embd = torch.cat((char_embd, word_embd), 2) # (N, seq_len, embd_size*2)
-        embd = self.highway_net(embd)
         
         # 3. Contextual  Embedding Layer
         ctx_embd_out, ctx_embd_h = self.ctx_embd_layer(embd)
