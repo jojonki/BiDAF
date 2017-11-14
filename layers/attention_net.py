@@ -31,10 +31,10 @@ class AttentionNet(nn.Module):
         self.ctx_embd_layer = nn.GRU(self.d, self.d, bidirectional=True, dropout=0.2)
 
         self.W = nn.Parameter(torch.rand(1, 6*self.d, 1).type(torch.FloatTensor), requires_grad=True) # (N, 6d, 1) for bmm (N, T*J, 6d)
-        self.modeling_layer = nn.GRU(self.d*8, self.d, bidirectional=True, dropout=0.2)
-        self.p1_layer = nn.Linear(self.d*10, args.ans_size)
-        self.p2_lstm_layer = nn.GRU(self.d*2, self.d*2, bidirectional=True, dropout=0.2)
-        self.p2_layer = nn.Linear(self.d*12, args.ans_size)
+        self.modeling_layer = nn.GRU(8*self.d, self.d, bidirectional=True, dropout=0.2)
+        self.p1_layer = nn.Linear(10*self.d, args.ans_size)
+        self.p2_lstm_layer = nn.GRU(2*self.d, 2*self.d, bidirectional=True, dropout=0.2)
+        self.p2_layer = nn.Linear(12*self.d, args.ans_size)
         
     def build_contextual_embd(self, x_c, x_w):
         # 1. Caracter Embedding Layer
@@ -77,16 +77,20 @@ class AttentionNet(nn.Module):
         cat_data = cat_data.view(batch_size, -1, 6*self.d) # (N, T*J, 6d)
         S = torch.bmm(cat_data, self.W.expand(batch_size, 6*self.d, 1)) # (N, T*J, 1)
         S = S.view(batch_size, T, J) # (N, T, J), unsqueeze last dim
+        S = S.view(batch_size*T, J)
+        S = torch.stack([F.softmax(S[i]) for i in range(len(S))], 0) # softmax for each row
+        S = S.view(batch_size, T, J) # (N, T, J), unsqueeze last dim
 
         # Context2Query
-        c2q = torch.bmm(S, embd_query) # (N, T, 2d)
+        c2q = torch.bmm(S, embd_query) # (N, T, 2d) = bmm( (N, T, J), (N, J, 2d) )
         # Query2Context
-        tmp_b = torch.max(S, 2)[0]
-        b = torch.stack([F.softmax(tmp_b[i]) for i in range(batch_size)], 0) # (N, T)
-        q2c = torch.bmm(b.unsqueeze(1), embd_context).squeeze() # (N, 2d)
-        q2c = q2c.unsqueeze(1) # (N, 1, 2d)
-        q2c = q2c.repeat(1, T, 1) # (N, T, 2d)
+        # b: attention weights on the context
+        tmp_b = torch.max(S, 2)[0] # (N, T)
+        b = torch.stack([F.softmax(tmp_b[i]) for i in range(batch_size)], 0) # (N, T), softmax for each row
+        q2c = torch.bmm(b.unsqueeze(1), embd_context) # (N, 1, 2d) = bmm( (N, 1, T), (N, T, 2d) )
+        q2c = q2c.repeat(1, T, 1) # (N, T, 2d), tiled T times
         
+        # G: query aware representation of each context word
         G = torch.cat((embd_context, c2q, embd_context.mul(c2q), embd_context.mul(q2c)), 2) # (N, T, 8d)
         
         # 5. Modeling Layer
