@@ -12,9 +12,9 @@ class CharEmbedding(nn.Module):
         self.embedding = nn.Embedding(args.vocab_size_c, args.embd_size)
         # nn.Conv1d(in_channels, out_channels, kernel_size, stride=1, padding=0, ...
         self.conv = nn.ModuleList([nn.Conv2d(1, args.out_chs, (f[0], f[1])) for f in args.filters])
-        self.dropout = nn.Dropout(.5)
+        self.dropout = nn.Dropout(.2)
         self.fc1 = nn.Linear(args.out_chs*len(args.filters), 1)
-        
+
     def forward(self, x):
         # x: (N, seq_len, word_len)
         input_shape = x.size()
@@ -25,5 +25,21 @@ class CharEmbedding(nn.Module):
         x = self.embedding(x) # (N*seq_len, word_len, embd_size)
         x = x.view(*input_shape, -1) # (N, seq_len, word_len, embd_size)
         x = x.sum(2) # (N, seq_len, embd_size)
-        
+
+        # CNN
+        x = x.unsqueeze(1) # (N, Cin, seq_len, embd_dim), insert Channnel-In dim
+        # Conv2d
+        #    Input : (N,Cin, Hin, Win )
+        #    Output: (N,Cout,Hout,Wout) 
+        x = [F.relu(conv(x)) for conv in self.conv] # (N, Cout, seq_len, embd_dim-filter_w+1). stride == 1
+        # [(N,Cout,Hout,Wout) -> [(N,Cout,Hout*Wout)] * len(filter_heights)
+        # [(N, seq_len, embd_dim-filter_w+1, Cout)] * len(filter_heights)
+        x = [xx.view((xx.size(0), xx.size(2), xx.size(3), xx.size(1))) for xx in x]
+        # maxpool like
+        # [(N, seq_len, Cout)] * len(filter_heights)
+        x = [torch.sum(xx, 2) for xx in x]
+        # (N, seq_len, Cout)
+        x = torch.cat(x, 1)
+        x = self.dropout(x)
+
         return x
