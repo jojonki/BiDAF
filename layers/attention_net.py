@@ -25,12 +25,12 @@ class AttentionNet(nn.Module):
         self.char_embd_net = CharEmbedding(args)
         self.word_embd_net = WordEmbedding(args)
         self.highway_net = Highway(args.embd_size*2)# TODO check share is ok?
-        self.ctx_embd_layer = nn.GRU(args.embd_size*2, args.embd_size*2, bidirectional=True)
+        self.ctx_embd_layer = nn.GRU(args.embd_size*2, args.embd_size*2, bidirectional=True, dropout=0.2)
         self.W = nn.Parameter(torch.rand(3*2*2* args.embd_size, 1).type(torch.FloatTensor), requires_grad=True)
 #         self.beta = nn.Parameter(torch.rand(8*2*2* args.embd_size).type(torch.FloatTensor).view(1, -1), requires_grad=True)
-        self.modeling_layer = nn.GRU(args.embd_size*2*8, args.embd_size*2, bidirectional=True)
+        self.modeling_layer = nn.GRU(args.embd_size*2*8, args.embd_size*2, bidirectional=True, dropout=0.2)
         self.p1_layer = nn.Linear(args.embd_size*2*10, args.ans_size)
-        self.p2_lstm_layer = nn.GRU(args.embd_size*2*2, args.embd_size*2*2, bidirectional=True)
+        self.p2_lstm_layer = nn.GRU(args.embd_size*2*2, args.embd_size*2*2, bidirectional=True, dropout=0.2)
         self.p2_layer = nn.Linear(args.embd_size*2*12, args.ans_size)
         
     def build_contextual_embd(self, x_c, x_w):
@@ -90,11 +90,11 @@ class AttentionNet(nn.Module):
         # 5. Output Layer
         G_M = torch.cat((G, M), 2) # (N, T, 10d)
         G_M = G_M.sum(1) #(N, 10d)
-        p1 = F.softmax(self.p1_layer(G_M)) # (N, T)
+        p1 = F.log_softmax(self.p1_layer(G_M)) # (N, T)
         
         M2, _ = self.p2_lstm_layer(M) # (N, T, 4d)
         G_M2 = torch.cat((G, M2), 2) # (N, T, 12d)
         G_M2 = G_M2.sum(1) # (N, 12d)(N, T)
-        p2 = F.softmax(self.p2_layer(G_M2)) # (N, T)
+        p2 = F.log_softmax(self.p2_layer(G_M2)) # (N, T)
         
         return p1, p2
