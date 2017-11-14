@@ -25,7 +25,8 @@ parser.add_argument('--batchSize', type=int, default=16, help='input batch size'
 parser.add_argument('--imageSize', type=int, default=64, help='the height / width of the input image to network')
 parser.add_argument('--lr', type=float, default=0.5, help='learning rate, default=0.5')
 parser.add_argument('--ngpu', type=int, default=1, help='number of GPUs to use')
-parser.add_argument('--embd_size', type=int, default=100, help='embedding size')
+parser.add_argument('--w_embd_size', type=int, default=100, help='word embedding size')
+parser.add_argument('--c_embd_size', type=int, default=8, help='character embedding size')
 parser.add_argument('--manualSeed', type=int, help='manual seed')
 
 args = parser.parse_args()
@@ -85,8 +86,7 @@ print('query_sent_maxlen:', query_sent_maxlen)
 print('ctx_word_maxlen:', ctx_word_maxlen)
 print('query_word_maxlen:', query_word_maxlen)
 
-
-glove_embd_w = torch.from_numpy(load_glove_weights('./dataset', args.embd_size, vocab_size_w, w2i_w)).type(torch.FloatTensor)
+glove_embd_w = torch.from_numpy(load_glove_weights('./dataset', args.w_embd_size, vocab_size_w, w2i_w)).type(torch.FloatTensor)
 # save_pickle(glove_embd_w, './pickle/glove_embd_w.pickle')
 # glove_embd_w = load_pickle('./pickle/glove_embd_w.pickle')
 

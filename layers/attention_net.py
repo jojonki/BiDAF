@@ -13,6 +13,7 @@ import torchtext
 use_cuda = torch.cuda.is_available()
 from process_data import save_pickle, load_pickle, load_task, load_glove_weights
 from process_data import to_var, make_word_vector, make_char_vector
+# from layers.char_embedding import CharEmbedding
 from layers.char_embedding import CharEmbedding
 from layers.word_embedding import WordEmbedding
 from layers.highway import Highway
@@ -20,18 +21,17 @@ from layers.highway import Highway
 class AttentionNet(nn.Module):
     def __init__(self, args):
         super(AttentionNet, self).__init__()
-        self.embd_size = args.embd_size
+        self.embd_size = args.w_embd_size
         self.ans_size = args.ans_size
         self.char_embd_net = CharEmbedding(args)
         self.word_embd_net = WordEmbedding(args)
-        self.highway_net = Highway(args.embd_size*2)# TODO check share is ok?
-        self.ctx_embd_layer = nn.GRU(args.embd_size*2, args.embd_size*2, bidirectional=True, dropout=0.2)
-        self.W = nn.Parameter(torch.rand(3*2*2* args.embd_size, 1).type(torch.FloatTensor), requires_grad=True)
-#         self.beta = nn.Parameter(torch.rand(8*2*2* args.embd_size).type(torch.FloatTensor).view(1, -1), requires_grad=True)
-        self.modeling_layer = nn.GRU(args.embd_size*2*8, args.embd_size*2, bidirectional=True, dropout=0.2)
-        self.p1_layer = nn.Linear(args.embd_size*2*10, args.ans_size)
-        self.p2_lstm_layer = nn.GRU(args.embd_size*2*2, args.embd_size*2*2, bidirectional=True, dropout=0.2)
-        self.p2_layer = nn.Linear(args.embd_size*2*12, args.ans_size)
+        self.highway_net = Highway(self.embd_size*2)# TODO check share is ok?
+        self.ctx_embd_layer = nn.GRU(self.embd_size*2, self.embd_size*2, bidirectional=True, dropout=0.2)
+        self.W = nn.Parameter(torch.rand(3*2*2* self.embd_size, 1).type(torch.FloatTensor), requires_grad=True)
+        self.modeling_layer = nn.GRU(self.embd_size*2*8, self.embd_size*2, bidirectional=True, dropout=0.2)
+        self.p1_layer = nn.Linear(self.embd_size*2*10, args.ans_size)
+        self.p2_lstm_layer = nn.GRU(self.embd_size*2*2, self.embd_size*2*2, bidirectional=True, dropout=0.2)
+        self.p2_layer = nn.Linear(self.embd_size*2*12, args.ans_size)
         
     def build_contextual_embd(self, x_c, x_w):
         # 1. Caracter Embedding Layer
