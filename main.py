@@ -157,17 +157,19 @@ def train(model, optimizer, n_epoch=10, batch_size=args.batch_size):
                     print('Rank {}, p1_result={}, p2_result={}'.format(
                         rank+1, p1_rank_id==a_beg.data[0], p2_rank_id==a_end.data[0]))
                 # TODO calc acc, save every epoch wrt acc
-                save_checkpoint({
-                    'epoch': epoch + 1,
-                    # 'arch': args.arch,
-                    'state_dict': model.state_dict(),
-                    # 'best_prec1': best_prec1,
-                    'optimizer' : optimizer.state_dict(),
-                }, True)
+
             model.zero_grad()
             (loss_p1+loss_p2).backward()
             optimizer.step()
- 
+        
+        # end eopch
+        save_checkpoint({
+            'epoch': epoch + 1,
+            # 'arch': args.arch,
+            'state_dict': model.state_dict(),
+            # 'best_prec1': best_prec1,
+            'optimizer' : optimizer.state_dict(),
+        }, True)
 
 def test(model, batch_size=args.batch_size):
     pass
