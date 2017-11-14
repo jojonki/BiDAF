@@ -27,18 +27,18 @@ class CharEmbedding(nn.Module):
         x = x.sum(2) # (N, seq_len, c_embd_size)
 
         # CNN
-        x = x.unsqueeze(1) # (N, Cin, seq_len, embd_dim), insert Channnel-In dim
+        x = x.unsqueeze(1) # (N, Cin, seq_len, c_embd_size), insert Channnel-In dim
         # Conv2d
         #    Input : (N,Cin, Hin, Win )
         #    Output: (N,Cout,Hout,Wout) 
-        x = [F.relu(conv(x)) for conv in self.conv] # (N, Cout, seq_len, embd_dim-filter_w+1). stride == 1
+        x = [F.relu(conv(x)) for conv in self.conv] # (N, Cout, seq_len, c_embd_size-filter_w+1). stride == 1
         # [(N,Cout,Hout,Wout) -> [(N,Cout,Hout*Wout)] * len(filter_heights)
-        # [(N, seq_len, embd_dim-filter_w+1, Cout)] * len(filter_heights)
+        # [(N, seq_len, c_embd_size-filter_w+1, Cout)] * len(filter_heights)
         x = [xx.view((xx.size(0), xx.size(2), xx.size(3), xx.size(1))) for xx in x]
         # maxpool like
         # [(N, seq_len, Cout)] * len(filter_heights)
         x = [torch.sum(xx, 2) for xx in x]
-        # (N, seq_len, Cout)
+        # (N, seq_len, Cout==word_embd_size)
         x = torch.cat(x, 1)
         x = self.dropout(x)
 
