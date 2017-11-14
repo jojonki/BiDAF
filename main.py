@@ -2,6 +2,7 @@ import numpy as np
 import os
 import json
 from nltk.tokenize import word_tokenize
+import argparse
 
 import torch
 import torch.nn as nn
@@ -19,13 +20,23 @@ from layers.highway import Highway
 from layers.attention_net import AttentionNet
 from config import Config
 
+parser = argparse.ArgumentParser()
+parser.add_argument('--batchSize', type=int, default=16, help='input batch size')
+parser.add_argument('--imageSize', type=int, default=64, help='the height / width of the input image to network')
+parser.add_argument('--lr', type=float, default=0.5, help='learning rate, default=0.5')
+parser.add_argument('--ngpu', type=int, default=1, help='number of GPUs to use')
+parser.add_argument('--embd_size', type=int, default=100, help='embedding size')
+parser.add_argument('--manualSeed', type=int, help='manual seed')
+
+args = parser.parse_args()
+print(args)
+
 train_data, train_ctx_maxlen = load_task('./dataset/train-v1.1.json')
-train_data = train_data[:int(len(train_data)*0.7)]
 dev_data, dev_ctx_maxlen = load_task('./dataset/dev-v1.1.json')
 data = train_data + dev_data
 ctx_maxlen = max(train_ctx_maxlen, dev_ctx_maxlen)
-# save_pickle(train_data, 'pickle/train_data.pickle')
-# save_pickle(dev_data, 'pickle/dev_data.pickle')
+save_pickle(train_data, 'pickle/train_data.pickle')
+save_pickle(dev_data, 'pickle/dev_data.pickle')
 
 vocab_w, vocab_c = set(), set()
 for ctx_w, ctx_c, q_id, q_w, q_c, answer, _, _ in data:
@@ -42,9 +53,12 @@ w2i_w = dict((w, i) for i, w in enumerate(vocab_w, 0))
 i2w_w = dict((i, w) for i, w in enumerate(vocab_w, 0))
 w2i_c = dict((c, i) for i, c in enumerate(vocab_c, 0))
 i2w_c = dict((i, c) for i, c in enumerate(vocab_c, 0))
-# save_pickle(vocab, 'pickle/vocab.pickle')
-# save_pickle(w2i, 'pickle/w2i.pickle')
-# save_pickle(i2w, 'pickle/i2w.pickle')
+save_pickle(vocab_w, 'pickle/vocab_w.pickle')
+save_pickle(vocab_c, 'pickle/vocab_c.pickle')
+save_pickle(w2i_w, 'pickle/w2i_w.pickle')
+save_pickle(w2i_c, 'pickle/w2i_c.pickle')
+save_pickle(i2w_w, 'pickle/i2w_w.pickle')
+save_pickle(i2w_c, 'pickle/i2w_c.pickle')
 # train_data = load_pickle('pickle/train_data.pickle')
 # vocab = load_pickle('pickle/vocab.pickle')
 # w2i = load_pickle('pickle/w2i.pickle')
@@ -68,19 +82,24 @@ print('ctx_word_maxlen:', ctx_word_maxlen)
 print('query_word_maxlen:', query_word_maxlen)
 
 
-embd_size = 100
-glove_embd_w = torch.from_numpy(load_glove_weights('./dataset', embd_size, vocab_size_w, w2i_w))
+glove_embd_w = torch.from_numpy(load_glove_weights('./dataset', args.embd_size, vocab_size_w, w2i_w))
 
-args = {
-    'embd_size': embd_size,
-    'vocab_size_c': vocab_size_c,
-    'vocab_size_w': vocab_size_w,
-    'pre_embd_w': glove_embd_w, # word embedding
-    'filters': [[1, 5]], # char embedding
-    'out_chs': 100, # char embedding
-    'ans_size': ctx_maxlen
-}
-args = Config(**args)
+# args = {
+#     'embd_size': embd_size,
+#     'vocab_size_c': vocab_size_c,
+#     'vocab_size_w': vocab_size_w,
+#     'pre_embd_w': glove_embd_w, # word embedding
+#     'filters': [[1, 5]], # char embedding
+#     'out_chs': 100, # char embedding
+#     'ans_size': ctx_maxlen
+# }
+# args = Config(**args)
+args.vocab_size_c = vocab_size_c
+args.vocab_size_w = vocab_size_w
+args.pre_embd_w = glove_embd_w
+args.filters = [[1, 5]]
+args.out_chs = 100
+args.ans_size = ctx_maxlen
         
 def train(model, optimizer, n_epoch=10, batch_size=8):
     for epoch in range(n_epoch):
@@ -100,12 +119,11 @@ def train(model, optimizer, n_epoch=10, batch_size=8):
             p1, p2 = model(c_char_var, c_word_var, q_char_var, q_word_var)
             loss_p1 = nn.NLLLoss()(p1, a_beg)
             loss_p2 = nn.NLLLoss()(p2, a_end)
+            print(loss_p1.data, loss_p2.data)
             model.zero_grad()
-#             print('loss.backward()')
             (loss_p1+loss_p2).backward()
             optimizer.step()
             
-#             break
 model = AttentionNet(args)
 if torch.cuda.is_available():
     model.cuda()
