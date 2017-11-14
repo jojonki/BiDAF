@@ -28,45 +28,49 @@ parser.add_argument('--ngpu', type=int, default=1, help='number of GPUs to use')
 parser.add_argument('--w_embd_size', type=int, default=100, help='word embedding size')
 parser.add_argument('--c_embd_size', type=int, default=8, help='character embedding size')
 parser.add_argument('--manualSeed', type=int, help='manual seed')
+parser.add_argument('--use_pickle', type=int, default=1, help='load dataset from pickles')
 
 args = parser.parse_args()
-print(args)
 
-# train_data, train_ctx_maxlen = load_task('./dataset/train-v1.1.json')
-# dev_data, dev_ctx_maxlen = load_task('./dataset/dev-v1.1.json')
-# ctx_maxlen = max(train_ctx_maxlen, dev_ctx_maxlen)
-# save_pickle(train_data, 'pickle/train_data.pickle')
-# save_pickle(dev_data, 'pickle/dev_data.pickle')
-train_data = load_pickle('pickle/train_data.pickle')
-dev_data = load_pickle('pickle/dev_data.pickle')
-data = train_data + dev_data
-ctx_maxlen = 4063 #TODO
+if args.use_pickle == 1:
+    train_data = load_pickle('pickle/train_data.pickle')
+    dev_data = load_pickle('pickle/dev_data.pickle')
+    data = train_data + dev_data
+    ctx_maxlen = 4063 #TODO
 
-# vocab_w, vocab_c = set(), set()
-# for ctx_w, ctx_c, q_id, q_w, q_c, answer, _, _ in data:
-#     vocab_w |= set(ctx_w + q_w + answer)
-#     flatten_c = [c for chars in ctx_c for c in chars]
-#     flatten_q = [c for chars in q_c for c in chars]
+    vocab_w = load_pickle('pickle/vocab_w.pickle')
+    vocab_c = load_pickle('pickle/vocab_c.pickle')
+    w2i_w = load_pickle('pickle/w2i_w.pickle')
+    i2w_w = load_pickle('pickle/i2w_w.pickle')
+    w2i_c = load_pickle('pickle/w2i_c.pickle')
+    i2w_c = load_pickle('pickle/i2w_c.pickle')
+else:
+    train_data, train_ctx_maxlen = load_task('./dataset/train-v1.1.json')
+    dev_data, dev_ctx_maxlen = load_task('./dataset/dev-v1.1.json')
+    data = train_data + dev_data
+    ctx_maxlen = max(train_ctx_maxlen, dev_ctx_maxlen)
+    save_pickle(train_data, 'pickle/train_data.pickle')
+    save_pickle(dev_data, 'pickle/dev_data.pickle')
 
-#     vocab_c |= set(flatten_c + flatten_q) # TODO
-# vocab_w = list(sorted(vocab_w))
-# vocab_c = list(sorted(vocab_c))
-# w2i_w = dict((w, i) for i, w in enumerate(vocab_w, 0))
-# i2w_w = dict((i, w) for i, w in enumerate(vocab_w, 0))
-# w2i_c = dict((c, i) for i, c in enumerate(vocab_c, 0))
-# i2w_c = dict((i, c) for i, c in enumerate(vocab_c, 0))
-# save_pickle(vocab_w, 'pickle/vocab_w.pickle')
-# save_pickle(vocab_c, 'pickle/vocab_c.pickle')
-# save_pickle(w2i_w, 'pickle/w2i_w.pickle')
-# save_pickle(w2i_c, 'pickle/w2i_c.pickle')
-# save_pickle(i2w_w, 'pickle/i2w_w.pickle')
-# save_pickle(i2w_c, 'pickle/i2w_c.pickle')
-vocab_w = load_pickle('pickle/vocab_w.pickle')
-vocab_c = load_pickle('pickle/vocab_c.pickle')
-w2i_w = load_pickle('pickle/w2i_w.pickle')
-i2w_w = load_pickle('pickle/i2w_w.pickle')
-w2i_c = load_pickle('pickle/w2i_c.pickle')
-i2w_c = load_pickle('pickle/i2w_c.pickle')
+    vocab_w, vocab_c = set(), set()
+    for ctx_w, ctx_c, q_id, q_w, q_c, answer, _, _ in data:
+        vocab_w |= set(ctx_w + q_w + answer)
+        flatten_c = [c for chars in ctx_c for c in chars]
+        flatten_q = [c for chars in q_c for c in chars]
+
+        vocab_c |= set(flatten_c + flatten_q) # TODO
+    vocab_w = list(sorted(vocab_w))
+    vocab_c = list(sorted(vocab_c))
+    w2i_w = dict((w, i) for i, w in enumerate(vocab_w, 0))
+    i2w_w = dict((i, w) for i, w in enumerate(vocab_w, 0))
+    w2i_c = dict((c, i) for i, c in enumerate(vocab_c, 0))
+    i2w_c = dict((i, c) for i, c in enumerate(vocab_c, 0))
+    save_pickle(vocab_w, 'pickle/vocab_w.pickle')
+    save_pickle(vocab_c, 'pickle/vocab_c.pickle')
+    save_pickle(w2i_w, 'pickle/w2i_w.pickle')
+    save_pickle(w2i_c, 'pickle/w2i_c.pickle')
+    save_pickle(i2w_w, 'pickle/i2w_w.pickle')
+    save_pickle(i2w_c, 'pickle/i2w_c.pickle')
 
 vocab_size_w = len(vocab_w)
 vocab_size_c = len(vocab_c)
@@ -86,10 +90,12 @@ print('query_sent_maxlen:', query_sent_maxlen)
 print('ctx_word_maxlen:', ctx_word_maxlen)
 print('query_word_maxlen:', query_word_maxlen)
 
-glove_embd_w = torch.from_numpy(load_glove_weights('./dataset', args.w_embd_size, vocab_size_w, w2i_w)).type(torch.FloatTensor)
-# save_pickle(glove_embd_w, './pickle/glove_embd_w.pickle')
-# glove_embd_w = load_pickle('./pickle/glove_embd_w.pickle')
-
+if args.use_pickle == 1:
+    glove_embd_w = load_pickle('./pickle/glove_embd_w.pickle')
+else:
+    glove_embd_w = torch.from_numpy(load_glove_weights('./dataset', args.w_embd_size, vocab_size_w, w2i_w)).type(torch.FloatTensor)
+    save_pickle(glove_embd_w, './pickle/glove_embd_w.pickle')
+    
 # args = {
 #     'embd_size': embd_size,
 #     'vocab_size_c': vocab_size_c,
@@ -106,6 +112,8 @@ args.pre_embd_w = glove_embd_w
 args.filters = [[1, 5]]
 args.out_chs = 100
 args.ans_size = ctx_maxlen
+print(args)
+
         
 def train(model, optimizer, n_epoch=10, batch_size=8):
     for epoch in range(n_epoch):
