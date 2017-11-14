@@ -22,16 +22,19 @@ class AttentionNet(nn.Module):
     def __init__(self, args):
         super(AttentionNet, self).__init__()
         self.embd_size = args.w_embd_size
+        self.d = self.embd_size * 2 # word_embedding + char_embedding
         self.ans_size = args.ans_size
+
         self.char_embd_net = CharEmbedding(args)
         self.word_embd_net = WordEmbedding(args)
-        self.highway_net = Highway(self.embd_size)# TODO check share is ok?
-        self.ctx_embd_layer = nn.GRU(self.embd_size*2, self.embd_size*2, bidirectional=True, dropout=0.2)
-        self.W = nn.Parameter(torch.rand(3*2*2* self.embd_size, 1).type(torch.FloatTensor), requires_grad=True)
-        self.modeling_layer = nn.GRU(self.embd_size*2*8, self.embd_size*2, bidirectional=True, dropout=0.2)
-        self.p1_layer = nn.Linear(self.embd_size*2*10, args.ans_size)
-        self.p2_lstm_layer = nn.GRU(self.embd_size*2*2, self.embd_size*2*2, bidirectional=True, dropout=0.2)
-        self.p2_layer = nn.Linear(self.embd_size*2*12, args.ans_size)
+        self.highway_net = Highway(self.embd_size)
+        self.ctx_embd_layer = nn.GRU(self.d, self.d, bidirectional=True, dropout=0.2)
+
+        self.W = nn.Parameter(torch.rand(3*2*self.d, 1).type(torch.FloatTensor), requires_grad=True)
+        self.modeling_layer = nn.GRU(self.d*8, self.d, bidirectional=True, dropout=0.2)
+        self.p1_layer = nn.Linear(self.d*10, args.ans_size)
+        self.p2_lstm_layer = nn.GRU(self.d*2, self.d*2, bidirectional=True, dropout=0.2)
+        self.p2_layer = nn.Linear(self.d*12, args.ans_size)
         
     def build_contextual_embd(self, x_c, x_w):
         # 1. Caracter Embedding Layer
@@ -45,35 +48,35 @@ class AttentionNet(nn.Module):
         # Highway Networks for 1. and 2.
         char_embd = self.highway_net(char_embd)
         word_embd = self.highway_net(word_embd)
-        embd = torch.cat((char_embd, word_embd), 2) # (N, seq_len, embd_size*2)
+        embd = torch.cat((char_embd, word_embd), 2) # (N, seq_len, d==embd_size*2)
         
         # 3. Contextual  Embedding Layer
-        ctx_embd_out, ctx_embd_h = self.ctx_embd_layer(embd)
+        ctx_embd_out, _h = self.ctx_embd_layer(embd)
         return ctx_embd_out
         
     def forward(self, ctx_c, ctx_w, query_c, query_w):
         batch_size = ctx_c.size(0)
+        T = ctx_w.size(1) # context sentence length (word level)
+        J = query_w.size(1) # query sentence length (word level)
         
         # 1. Caracter Embedding Layer 
         # 2. Word Embedding Layer
         # 3. Contextual  Embedding Layer
         embd_context = self.build_contextual_embd(ctx_c, ctx_w) # (N, T, 2d)
-        ctx_len = embd_context.size(1)
         embd_query   = self.build_contextual_embd(query_c, query_w) # (N, J, 2d)
-        query_len = embd_query.size(1)
         
         # 4. Attention Flow Layer
         # Context2Query
-        shape = (batch_size, ctx_len, query_len, self.embd_size*2*2) # (N, T, J, 2d)
+        shape = (batch_size, T, J, self.d*2) # (N, T, J, 2d)
         embd_context_ex = embd_context.unsqueeze(2) # (N, T, 1, 2d)
         embd_context_ex = embd_context_ex.expand(shape)
         embd_query_ex = embd_query.unsqueeze(1) # (N, 1, J, 2d)
         embd_query_ex = embd_query_ex.expand(shape)
         a_elmwise_mul_b = torch.mul(embd_context_ex, embd_query_ex) # (N, T, J, 2d)
         cat_data = torch.cat((embd_context_ex, embd_query_ex, a_elmwise_mul_b), 3) # (N, T, J, 6d)
-        cat_data = cat_data.view(batch_size, -1, 6*2*self.embd_size)
-        S = torch.bmm(cat_data, self.W.unsqueeze(0).expand(batch_size, 6*2*self.embd_size, 1))
-        S = S.view(batch_size, ctx_len, query_len)
+        cat_data = cat_data.view(batch_size, -1, 6*self.d)
+        S = torch.bmm(cat_data, self.W.unsqueeze(0).expand(batch_size, 6*self.d, 1))
+        S = S.view(batch_size, T, J)
         
         c2q = torch.bmm(S, embd_query) # (N, T, 2d)
         # Query2Context
@@ -81,7 +84,7 @@ class AttentionNet(nn.Module):
         b = torch.stack([F.softmax(tmp_b[i]) for i in range(batch_size)], 0) # (N, T)
         q2c = torch.bmm(b.unsqueeze(1), embd_context).squeeze() # (N, 2d)
         q2c = q2c.unsqueeze(1) # (N, 1, 2d)
-        q2c = q2c.repeat(1, ctx_len, 1) # (N, T, 2d)
+        q2c = q2c.repeat(1, T, 1) # (N, T, 2d)
         
         G = torch.cat((embd_context, c2q, embd_context.mul(c2q), embd_context.mul(q2c)), 2) # (N, T, 8d)
         
