@@ -30,7 +30,7 @@ class AttentionNet(nn.Module):
         self.highway_net = Highway(self.embd_size)
         self.ctx_embd_layer = nn.GRU(self.d, self.d, bidirectional=True, dropout=0.2)
 
-        self.W = nn.Parameter(torch.rand(3*2*self.d, 1).type(torch.FloatTensor), requires_grad=True)
+        self.W = nn.Parameter(torch.rand(1, 6*self.d, 1).type(torch.FloatTensor), requires_grad=True) # (N, 6d, 1) for bmm (N, T*J, 6d)
         self.modeling_layer = nn.GRU(self.d*8, self.d, bidirectional=True, dropout=0.2)
         self.p1_layer = nn.Linear(self.d*10, args.ans_size)
         self.p2_lstm_layer = nn.GRU(self.d*2, self.d*2, bidirectional=True, dropout=0.2)
@@ -56,28 +56,29 @@ class AttentionNet(nn.Module):
         
     def forward(self, ctx_c, ctx_w, query_c, query_w):
         batch_size = ctx_c.size(0)
-        T = ctx_w.size(1) # context sentence length (word level)
-        J = query_w.size(1) # query sentence length (word level)
+        T = ctx_w.size(1)   # context sentence length (word level)
+        J = query_w.size(1) # query sentence length   (word level)
         
         # 1. Caracter Embedding Layer 
         # 2. Word Embedding Layer
         # 3. Contextual  Embedding Layer
-        embd_context = self.build_contextual_embd(ctx_c, ctx_w) # (N, T, 2d)
+        embd_context = self.build_contextual_embd(ctx_c, ctx_w)     # (N, T, 2d)
         embd_query   = self.build_contextual_embd(query_c, query_w) # (N, J, 2d)
         
         # 4. Attention Flow Layer
-        # Context2Query
-        shape = (batch_size, T, J, self.d*2) # (N, T, J, 2d)
-        embd_context_ex = embd_context.unsqueeze(2) # (N, T, 1, 2d)
-        embd_context_ex = embd_context_ex.expand(shape)
-        embd_query_ex = embd_query.unsqueeze(1) # (N, 1, J, 2d)
-        embd_query_ex = embd_query_ex.expand(shape)
+        # Make a similarity matrix
+        shape = (batch_size, T, J, 2*self.d)            # (N, T, J, 2d)
+        embd_context_ex = embd_context.unsqueeze(2)     # (N, T, 1, 2d)
+        embd_context_ex = embd_context_ex.expand(shape) # (N, T, J, 2d)
+        embd_query_ex = embd_query.unsqueeze(1)         # (N, 1, J, 2d)
+        embd_query_ex = embd_query_ex.expand(shape)     # (N, T, J, 2d)
         a_elmwise_mul_b = torch.mul(embd_context_ex, embd_query_ex) # (N, T, J, 2d)
-        cat_data = torch.cat((embd_context_ex, embd_query_ex, a_elmwise_mul_b), 3) # (N, T, J, 6d)
-        cat_data = cat_data.view(batch_size, -1, 6*self.d)
-        S = torch.bmm(cat_data, self.W.unsqueeze(0).expand(batch_size, 6*self.d, 1))
-        S = S.view(batch_size, T, J)
-        
+        cat_data = torch.cat((embd_context_ex, embd_query_ex, a_elmwise_mul_b), 3) # (N, T, J, 6d), [h;u;h◦u]
+        cat_data = cat_data.view(batch_size, -1, 6*self.d) # (N, T*J, 6d)
+        S = torch.bmm(cat_data, self.W.expand(batch_size, 6*self.d, 1)) # (N, T*J, 1)
+        S = S.view(batch_size, T, J) # (N, T, J), unsqueeze last dim
+
+        # Context2Query
         c2q = torch.bmm(S, embd_query) # (N, T, 2d)
         # Query2Context
         tmp_b = torch.max(S, 2)[0]
