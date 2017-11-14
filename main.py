@@ -82,9 +82,9 @@ print('ctx_word_maxlen:', ctx_word_maxlen)
 print('query_word_maxlen:', query_word_maxlen)
 
 
-# glove_embd_w = torch.from_numpy(load_glove_weights('./dataset', args.embd_size, vocab_size_w, w2i_w))
+glove_embd_w = torch.from_numpy(load_glove_weights('./dataset', args.embd_size, vocab_size_w, w2i_w)).type(torch.FloatTensor)
 # save_pickle(glove_embd_w, './pickle/glove_embd_w.pickle')
-glove_embd_w = load_pickle('./pickle/glove_embd_w.pickle')
+# glove_embd_w = load_pickle('./pickle/glove_embd_w.pickle')
 
 # args = {
 #     'embd_size': embd_size,
