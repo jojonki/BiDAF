@@ -24,7 +24,7 @@ class AttentionNet(nn.Module):
         self.ans_size = args.ans_size
         self.char_embd_net = CharEmbedding(args)
         self.word_embd_net = WordEmbedding(args)
-        self.highway_net = Highway(args.embd_size*2)# TODO share is ok?
+        self.highway_net = Highway(args.embd_size*2)# TODO check share is ok?
         self.ctx_embd_layer = nn.GRU(args.embd_size*2, args.embd_size*2, bidirectional=True)
         self.W = nn.Parameter(torch.rand(3*2*2* args.embd_size, 1).type(torch.FloatTensor), requires_grad=True)
 #         self.beta = nn.Parameter(torch.rand(8*2*2* args.embd_size).type(torch.FloatTensor).view(1, -1), requires_grad=True)
