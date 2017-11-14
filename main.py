@@ -21,8 +21,7 @@ from layers.attention_net import AttentionNet
 # from config import Config
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--batchSize', type=int, default=16, help='input batch size')
-parser.add_argument('--imageSize', type=int, default=64, help='the height / width of the input image to network')
+parser.add_argument('--batch_size', type=int, default=10, help='input batch size')
 parser.add_argument('--lr', type=float, default=0.5, help='learning rate, default=0.5')
 parser.add_argument('--ngpu', type=int, default=1, help='number of GPUs to use')
 parser.add_argument('--w_embd_size', type=int, default=100, help='word embedding size')
@@ -114,11 +113,17 @@ args.out_chs = 100
 args.ans_size = ctx_maxlen
 print(args)
 
+def batch_ranking(p1, p2):
+    batch_size = p1.size(0)
+    p1_rank, p2_rank = [], []
+    for i in range(batch_size):
+        p1_rank.append(sorted(range(len(p1[i])), key=lambda k: p1[i][k].data[0], reverse=True))
+        p2_rank.append(sorted(range(len(p2[i])), key=lambda k: p2[i][k].data[0], reverse=True))
+    return p1_rank, p2_rank
         
-def train(model, optimizer, n_epoch=10, batch_size=8):
+def train(model, optimizer, n_epoch=10, batch_size=args.batch_size):
     for epoch in range(n_epoch):
-        now = datetime.datetime.now().strftime('%Y%m%d-%H%M%S')
-        print(now, ', epoch', epoch)
+        print('---Epoch', epoch)
         for i in range(0, len(data)-batch_size, batch_size): # TODO shuffle, last elms
             batch_data = data[i:i+batch_size]
             c = [d[0] for d in batch_data]
@@ -135,10 +140,21 @@ def train(model, optimizer, n_epoch=10, batch_size=8):
             loss_p1 = nn.NLLLoss()(p1, a_beg)
             loss_p2 = nn.NLLLoss()(p2, a_end)
             if i % 100 == 0:
-                print('loss_p1: {:.3f}, loss_p2: {:.3f}'.format(loss_p1.data[0], loss_p2.data[0]))
+                now = datetime.datetime.now().strftime('%Y%m%d-%H%M%S')
+                print('[{}] {:.1f}%, loss_p1: {:.3f}, loss_p2: {:.3f}'.format(now, 100*i/len(data), loss_p1.data[0], loss_p2.data[0]))
+                p1_rank, p2_rank = batch_ranking(p1, p2)
+                for rank in range(1): # N-best, currently 1-best
+                    p1_rank_id = p1_rank[0][rank]
+                    p2_rank_id = p2_rank[0][rank]
+                    print('Rank {}, p1_result={}, p2_result={}'.format(
+                        rank+1, p1_rank_id==a_beg.data[0], p2_rank_id==a_end.data[0]))
+                
             model.zero_grad()
             (loss_p1+loss_p2).backward()
             optimizer.step()
+
+def test(model, batch_size=args.batch_size):
+    pass
             
 model = AttentionNet(args)
 if torch.cuda.is_available():
