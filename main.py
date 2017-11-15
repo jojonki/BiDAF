@@ -35,8 +35,8 @@ parser.add_argument('--resume', default='./checkpoints/model_best.tar', type=str
 args = parser.parse_args()
 
 if args.use_pickle == 1:
-    train_data = load_pickle('pickle/train_data.pickle')[:10]
-    dev_data = load_pickle('pickle/dev_data.pickle')[:10]
+    train_data = load_pickle('pickle/train_data.pickle')
+    dev_data = load_pickle('pickle/dev_data.pickle')
     data = train_data + dev_data
     ctx_maxlen = 4063 #TODO
 
@@ -134,6 +134,7 @@ def train(model, optimizer, n_epoch=10, batch_size=args.batch_size):
     for epoch in range(n_epoch):
         print('---Epoch', epoch)
         for i in range(0, len(train_data)-batch_size, batch_size): # TODO shuffle, last elms
+            print('----------batch', i)
             batch_data = train_data[i:i+batch_size]
             c = [d[0] for d in batch_data]
             cc = [d[1] for d in batch_data]
@@ -173,10 +174,11 @@ def train(model, optimizer, n_epoch=10, batch_size=args.batch_size):
             'optimizer' : optimizer.state_dict(),
         }, True)
 
-def test(model, batch_size=args.batch_size):
+def test(model, batch_size=args.batch_size+2):
     p1_acc_count = 0
     p2_acc_count = 0
     for i in range(0, len(dev_data)-batch_size, batch_size): # TODO shuffle, last elms
+        print(i, '/', len(dev_data))
         batch_data = dev_data[i:i+batch_size]
         c = [d[0] for d in batch_data]
         cc = [d[1] for d in batch_data]
@@ -189,19 +191,19 @@ def test(model, batch_size=args.batch_size):
         q_char_var = make_char_vector(qc, w2i_c, query_sent_maxlen, query_word_maxlen)
         q_word_var = make_word_vector(q, w2i_w, query_sent_maxlen)
         p1, p2 = model(c_char_var, c_word_var, q_char_var, q_word_var)
+        p1_rank, p2_rank = batch_ranking(p1, p2)
 
-        if i % 100 == 0:
+        for n, (pp1, pp2) in enumerate(zip(p1, p2)):
+            # if i % 100 == 0:
             now = datetime.datetime.now().strftime('%Y%m%d-%H%M%S')
-            print('[{}] {:.1f}%, loss_p1: {:.3f}, loss_p2: {:.3f}'.format(now, 100*i/len(data), loss_p1.data[0], loss_p2.data[0]))
-            p1_rank, p2_rank = batch_ranking(p1, p2)
             for rank in range(1): # N-best, currently 1-best
-                p1_rank_id = p1_rank[0][rank]
-                p2_rank_id = p2_rank[0][rank]
-                print('Rank {}, p1_result={}, p2_result={}'.format(
-                    rank+1, p1_rank_id==a_beg.data[0], p2_rank_id==a_end.data[0]))
-                if p1_rank_id==a_beg.data[0]:
+                p1_rank_id = p1_rank[n][rank]
+                p2_rank_id = p2_rank[n][rank]
+                # print('Rank {}, p1_result={}, p2_result={}'.format(
+                #     rank+1, p1_rank_id==a_beg.data[n], p2_rank_id==a_end.data[n]))
+                if p1_rank_id==a_beg.data[n]:
                     p1_acc_count += 1
-                if p2_rank_id==a_end.data[0]:
+                if p2_rank_id==a_end.data[n]:
                     p2_acc_count += 1
     N = len(dev_data)
     print('======== Test result ========')
@@ -224,7 +226,9 @@ else:
     print("=> no checkpoint found at '{}'".format(args.resume)) 
 
 if torch.cuda.is_available():
+    print('use cuda')
     model.cuda()
+    model = torch.nn.DataParallel(model, device_ids=[0])
 
 print(model)
 
