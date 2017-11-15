@@ -131,10 +131,11 @@ def batch_ranking(p1, p2):
     return p1_rank, p2_rank
         
 def train(model, optimizer, n_epoch=10, batch_size=args.batch_size):
+    model.train()
     for epoch in range(n_epoch):
         print('---Epoch', epoch)
         for i in range(0, len(train_data)-batch_size, batch_size): # TODO shuffle, last elms
-            print('----------batch', i)
+            # print('----------batch', i)
             batch_data = train_data[i:i+batch_size]
             c = [d[0] for d in batch_data]
             cc = [d[1] for d in batch_data]
@@ -149,17 +150,17 @@ def train(model, optimizer, n_epoch=10, batch_size=args.batch_size):
             p1, p2 = model(c_char_var, c_word_var, q_char_var, q_word_var)
             loss_p1 = nn.NLLLoss()(p1, a_beg)
             loss_p2 = nn.NLLLoss()(p2, a_end)
-            if i % 100 == 0:
+            if i % (args.batch_size*20) == 0:
                 now = datetime.datetime.now().strftime('%Y%m%d-%H%M%S')
                 print('[{}] {:.1f}%, loss_p1: {:.3f}, loss_p2: {:.3f}'.format(now, 100*i/len(data), loss_p1.data[0], loss_p2.data[0]))
-                test(model)
-                # p1_rank, p2_rank = batch_ranking(p1, p2)
-                # for rank in range(1): # N-best, currently 1-best
-                #     p1_rank_id = p1_rank[0][rank]
-                #     p2_rank_id = p2_rank[0][rank]
-                #     print('Rank {}, p1_result={}, p2_result={}'.format(
-                #         rank+1, p1_rank_id==a_beg.data[0], p2_rank_id==a_end.data[0]))
-                # # TODO calc acc, save every epoch wrt acc
+                # test(model)
+                p1_rank, p2_rank = batch_ranking(p1, p2)
+                for rank in range(1): # N-best, currently 1-best
+                    p1_rank_id = p1_rank[0][rank]
+                    p2_rank_id = p2_rank[0][rank]
+                    print('Rank {}, p1_result={}, p2_result={}'.format(
+                        rank+1, p1_rank_id==a_beg.data[0], p2_rank_id==a_end.data[0]))
+                # TODO calc acc, save every epoch wrt acc
 
             model.zero_grad()
             (loss_p1+loss_p2).backward()
@@ -175,10 +176,10 @@ def train(model, optimizer, n_epoch=10, batch_size=args.batch_size):
         }, True)
 
 def test(model, batch_size=args.batch_size+2):
+    model.evaluate()
     p1_acc_count = 0
     p2_acc_count = 0
     for i in range(0, len(dev_data)-batch_size, batch_size): # TODO shuffle, last elms
-        print(i, '/', len(dev_data))
         batch_data = dev_data[i:i+batch_size]
         c = [d[0] for d in batch_data]
         cc = [d[1] for d in batch_data]
@@ -231,8 +232,11 @@ if torch.cuda.is_available():
     model = torch.nn.DataParallel(model, device_ids=[0])
 
 print(model)
+print('parameters-----')
+for parameter in model.parameters():
+    print(parameter.size())
 
-if args.test_mode:
+if args.test_mode == 1:
     test(model)
 else:
     train(model, optimizer)
