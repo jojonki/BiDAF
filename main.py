@@ -9,7 +9,6 @@ import torch.nn as nn
 from process_data import save_pickle, load_pickle, load_task, load_glove_weights
 from process_data import to_var, make_word_vector, make_char_vector
 from layers.attention_net import AttentionNet
-# from config import Config
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--batch_size', type=int, default=10, help='input batch size')
@@ -21,14 +20,13 @@ parser.add_argument('--manualSeed', type=int, help='manual seed')
 parser.add_argument('--use_pickle', type=int, default=0, help='load dataset from pickles')
 parser.add_argument('--test_mode', type=int, default=0, help='1 for test, or for training')
 parser.add_argument('--resume', default='./checkpoints/model_best.tar', type=str, metavar='PATH', help='path saved params')
-
 args = parser.parse_args()
 
 if args.use_pickle == 1:
     train_data = load_pickle('pickle/train_data.pickle')
     dev_data = load_pickle('pickle/dev_data.pickle')
     data = train_data + dev_data
-    ctx_maxlen = 4063 #TODO
+    ctx_maxlen = 4063 # TODO
 
     vocab_w = load_pickle('pickle/vocab_w.pickle')
     vocab_c = load_pickle('pickle/vocab_c.pickle')
@@ -87,17 +85,7 @@ if args.use_pickle == 1:
 else:
     glove_embd_w = torch.from_numpy(load_glove_weights('./dataset', args.w_embd_size, vocab_size_w, w2i_w)).type(torch.FloatTensor)
     save_pickle(glove_embd_w, './pickle/glove_embd_w.pickle')
-    
-# args = {
-#     'embd_size': embd_size,
-#     'vocab_size_c': vocab_size_c,
-#     'vocab_size_w': vocab_size_w,
-#     'pre_embd_w': glove_embd_w, # word embedding
-#     'filters': [[1, 5]], # char embedding
-#     'out_chs': 100, # char embedding
-#     'ans_size': ctx_maxlen
-# }
-# args = Config(**args)
+
 args.vocab_size_c = vocab_size_c
 args.vocab_size_w = vocab_size_w
 args.pre_embd_w = glove_embd_w
@@ -106,12 +94,14 @@ args.out_chs = 100
 args.ans_size = ctx_maxlen
 print(args)
 
+
 def save_checkpoint(state, is_best, filename='./checkpoints/checkpoint.pth.tar'):
     print('save model!!!!')
     torch.save(state, filename)
     if is_best:
         shutil.copyfile(filename, args.resume)
-        
+
+
 def batch_ranking(p1, p2):
     batch_size = p1.size(0)
     p1_rank, p2_rank = [], []
@@ -178,7 +168,7 @@ def test(model, batch_size=args.batch_size+2):
         q = [d[3] for d in batch_data]
         qc = [d[4] for d in batch_data]
         a_beg = to_var(torch.LongTensor([d[6][0] for d in batch_data]).squeeze()) # TODO: multi target
-        a_end = to_var(torch.LongTensor([d[7][0] for d in batch_data]).squeeze()) 
+        a_end = to_var(torch.LongTensor([d[7][0] for d in batch_data]).squeeze())
         c_char_var = make_char_vector(cc, w2i_c, ctx_sent_maxlen, ctx_word_maxlen)
         c_word_var = make_word_vector(c, w2i_w, ctx_sent_maxlen)
         q_char_var = make_char_vector(qc, w2i_c, query_sent_maxlen, query_word_maxlen)
@@ -222,14 +212,12 @@ if torch.cuda.is_available():
     model = torch.nn.DataParallel(model, device_ids=[0])
 
 print(model)
-print('parameters-----')
-for parameter in model.parameters():
-    print(parameter.size())
+# print('parameters-----')
+# for parameter in model.parameters():
+#     print(parameter.size())
 
 if args.test_mode == 1:
     test(model)
 else:
     train(model, optimizer)
 print('finish')
-
-
