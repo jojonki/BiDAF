@@ -1,6 +1,6 @@
-import torch
 import torch.nn as nn
 import torch.nn.functional as F
+
 
 class Highway(nn.Module):
     def __init__(self, in_size, n_layers=2, act=F.relu, gate_act=F.sigmoid):

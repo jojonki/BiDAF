@@ -1,11 +1,13 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch.autograd import Variable
 
-# In : (N, sentence_len, word_len, vocab_size_c)
-# Out: (N, sentence_len, c_embd_size)
+
 class CharEmbedding(nn.Module):
+    '''
+     In : (N, sentence_len, word_len, vocab_size_c)
+     Out: (N, sentence_len, c_embd_size)
+     '''
     def __init__(self, args):
         super(CharEmbedding, self).__init__()
         self.embd_size = args.c_embd_size
@@ -18,8 +20,8 @@ class CharEmbedding(nn.Module):
     def forward(self, x):
         # x: (N, seq_len, word_len)
         input_shape = x.size()
-        bs = x.size(0)
-        seq_len = x.size(1)
+        # bs = x.size(0)
+        # seq_len = x.size(1)
         word_len = x.size(2)
         x = x.view(-1, word_len) # (N*seq_len, word_len)
         x = self.embedding(x) # (N*seq_len, word_len, c_embd_size)
@@ -30,7 +32,7 @@ class CharEmbedding(nn.Module):
         x = x.unsqueeze(1) # (N, Cin, seq_len, c_embd_size), insert Channnel-In dim
         # Conv2d
         #    Input : (N,Cin, Hin, Win )
-        #    Output: (N,Cout,Hout,Wout) 
+        #    Output: (N,Cout,Hout,Wout)
         x = [F.relu(conv(x)) for conv in self.conv] # (N, Cout, seq_len, c_embd_size-filter_w+1). stride == 1
         # [(N,Cout,Hout,Wout) -> [(N,Cout,Hout*Wout)] * len(filter_heights)
         # [(N, seq_len, c_embd_size-filter_w+1, Cout)] * len(filter_heights)

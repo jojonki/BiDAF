@@ -1,23 +1,13 @@
-import numpy as np
 import os
 import shutil
-import json
-from nltk.tokenize import word_tokenize
 import argparse
 import datetime
 
 import torch
 import torch.nn as nn
-from torch.autograd import Variable
-from torch import optim
-import torch.nn.functional as F
-import torchtext
 
 from process_data import save_pickle, load_pickle, load_task, load_glove_weights
 from process_data import to_var, make_word_vector, make_char_vector
-from layers.char_embedding import CharEmbedding
-from layers.word_embedding import WordEmbedding
-from layers.highway import Highway
 from layers.attention_net import AttentionNet
 # from config import Config
 
@@ -28,7 +18,7 @@ parser.add_argument('--ngpu', type=int, default=1, help='number of GPUs to use')
 parser.add_argument('--w_embd_size', type=int, default=100, help='word embedding size')
 parser.add_argument('--c_embd_size', type=int, default=8, help='character embedding size')
 parser.add_argument('--manualSeed', type=int, help='manual seed')
-parser.add_argument('--use_pickle', type=int, default=1, help='load dataset from pickles')
+parser.add_argument('--use_pickle', type=int, default=0, help='load dataset from pickles')
 parser.add_argument('--test_mode', type=int, default=0, help='1 for test, or for training')
 parser.add_argument('--resume', default='./checkpoints/model_best.tar', type=str, metavar='PATH', help='path saved params')
 
@@ -129,7 +119,8 @@ def batch_ranking(p1, p2):
         p1_rank.append(sorted(range(len(p1[i])), key=lambda k: p1[i][k].data[0], reverse=True))
         p2_rank.append(sorted(range(len(p2[i])), key=lambda k: p2[i][k].data[0], reverse=True))
     return p1_rank, p2_rank
-        
+
+
 def train(model, optimizer, n_epoch=10, batch_size=args.batch_size):
     model.train()
     for epoch in range(n_epoch):
@@ -142,7 +133,7 @@ def train(model, optimizer, n_epoch=10, batch_size=args.batch_size):
             q = [d[3] for d in batch_data]
             qc = [d[4] for d in batch_data]
             a_beg = to_var(torch.LongTensor([d[6][0] for d in batch_data]).squeeze()) # TODO: multi target
-            a_end = to_var(torch.LongTensor([d[7][0] for d in batch_data]).squeeze()) 
+            a_end = to_var(torch.LongTensor([d[7][0] for d in batch_data]).squeeze())
             c_char_var = make_char_vector(cc, w2i_c, ctx_sent_maxlen, ctx_word_maxlen)
             c_word_var = make_word_vector(c, w2i_w, ctx_sent_maxlen)
             q_char_var = make_char_vector(qc, w2i_c, query_sent_maxlen, query_word_maxlen)
@@ -159,7 +150,7 @@ def train(model, optimizer, n_epoch=10, batch_size=args.batch_size):
                     p1_rank_id = p1_rank[0][rank]
                     p2_rank_id = p2_rank[0][rank]
                     print('Rank {}, p1_result={}, p2_result={}'.format(
-                        rank+1, p1_rank_id==a_beg.data[0], p2_rank_id==a_end.data[0]))
+                        rank+1, p1_rank_id == a_beg.data[0], p2_rank_id == a_end.data[0]))
                 # TODO calc acc, save every epoch wrt acc
 
             model.zero_grad()
@@ -174,6 +165,7 @@ def train(model, optimizer, n_epoch=10, batch_size=args.batch_size):
             # 'best_prec1': best_prec1,
             'optimizer' : optimizer.state_dict(),
         }, True)
+
 
 def test(model, batch_size=args.batch_size+2):
     model.evaluate()
@@ -196,20 +188,19 @@ def test(model, batch_size=args.batch_size+2):
 
         for n, (pp1, pp2) in enumerate(zip(p1, p2)):
             # if i % 100 == 0:
-            now = datetime.datetime.now().strftime('%Y%m%d-%H%M%S')
+            # now = datetime.datetime.now().strftime('%Y%m%d-%H%M%S')
             for rank in range(1): # N-best, currently 1-best
                 p1_rank_id = p1_rank[n][rank]
                 p2_rank_id = p2_rank[n][rank]
                 # print('Rank {}, p1_result={}, p2_result={}'.format(
                 #     rank+1, p1_rank_id==a_beg.data[n], p2_rank_id==a_end.data[n]))
-                if p1_rank_id==a_beg.data[n]:
+                if p1_rank_id == a_beg.data[n]:
                     p1_acc_count += 1
-                if p2_rank_id==a_end.data[n]:
+                if p2_rank_id == a_end.data[n]:
                     p2_acc_count += 1
     N = len(dev_data)
     print('======== Test result ========')
     print('p1 acc: {:.3f}, p2 acc: {:.3f}'.format(p1_acc_count/N, p2_acc_count/N))
-
 
 
 model = AttentionNet(args)
@@ -221,10 +212,9 @@ if os.path.isfile(args.resume):
     # best_prec1 = checkpoint['best_prec1']
     model.load_state_dict(checkpoint['state_dict'])
     optimizer.load_state_dict(checkpoint['optimizer']) # TODO ?
-    print("=> loaded checkpoint '{}' (epoch {})"
-            .format(args.resume, checkpoint['epoch']))
+    print("=> loaded checkpoint '{}' (epoch {})".format(args.resume, checkpoint['epoch']))
 else:
-    print("=> no checkpoint found at '{}'".format(args.resume)) 
+    print("=> no checkpoint found at '{}'".format(args.resume))
 
 if torch.cuda.is_available():
     print('use cuda')
