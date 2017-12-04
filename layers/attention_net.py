@@ -12,10 +12,11 @@ class AttentionNet(nn.Module):
     def __init__(self, args):
         super(AttentionNet, self).__init__()
         self.embd_size = args.w_embd_size
-        self.d = self.embd_size * 2 # word_embedding + char_embedding
+        # self.d = self.embd_size * 2 # word_embedding + char_embedding
+        self.d = self.embd_size # only word_embedding
         self.ans_size = args.ans_size
 
-        self.char_embd_net = CharEmbedding(args)
+        # self.char_embd_net = CharEmbedding(args)
         self.word_embd_net = WordEmbedding(args)
         # self.highway_net = Highway(self.embd_size)
         self.ctx_embd_layer = nn.GRU(self.d, self.d, bidirectional=True, dropout=0.2)
@@ -30,16 +31,16 @@ class AttentionNet(nn.Module):
 
     def build_contextual_embd(self, x_c, x_w):
         # 1. Caracter Embedding Layer
-        char_embd = self.char_embd_net(x_c) # (N, seq_len, embd_size)
+        # char_embd = self.char_embd_net(x_c) # (N, seq_len, embd_size)
         # 2. Word Embedding Layer
         word_embd = self.word_embd_net(x_w) # (N, seq_len, embd_size)
         # Highway Networks for 1. and 2.
         # char_embd = self.highway_net(char_embd)
         # word_embd = self.highway_net(word_embd)
-        embd = torch.cat((char_embd, word_embd), 2) # (N, seq_len, d==embd_size*2)
+        # embd = torch.cat((char_embd, word_embd), 2) # (N, seq_len, d==embd_size*2)
 
         # 3. Contextual  Embedding Layer
-        ctx_embd_out, _h = self.ctx_embd_layer(embd)
+        ctx_embd_out, _h = self.ctx_embd_layer(word_embd)
         return ctx_embd_out
 
     def forward(self, ctx_c, ctx_w, query_c, query_w):
