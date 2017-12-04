@@ -6,15 +6,18 @@ from nltk.tokenize import word_tokenize
 import torch
 from torch.autograd import Variable
 
+
 def save_pickle(d, path):
     print('save pickle to', path)
     with open(path, mode='wb') as f:
         pickle.dump(d, f)
 
+
 def load_pickle(path):
     print('load', path)
     with open(path, mode='rb') as f:
         return pickle.load(f)
+
 
 def load_task(dataset_path):
     ret_data = []
@@ -25,7 +28,8 @@ def load_task(dataset_path):
         print('dataset version:', ver)
         data = data['data']
         for i, d in enumerate(data):
-            if i % 100 == 0: print('load_task:', i, '/', len(data))
+            if i % 100 == 0:
+                print('load_task:', i, '/', len(data))
             # print('load', d['title'], i, '/', len(data))
             for p in d['paragraphs']:
                 if len(p['context']) > ctx_max_len:
@@ -42,6 +46,7 @@ def load_task(dataset_path):
                     ret_data.append((c, cc, qa['id'], q, qc, a, a_beg, a_end)) # TODO context redandancy
     return ret_data, ctx_max_len
 
+
 def load_glove_weights(glove_dir, embd_dim, vocab_size, word_index):
     embeddings_index = {}
     f = open(os.path.join(glove_dir, 'glove.6B.' + str(embd_dim) + 'd.txt'))
@@ -52,7 +57,7 @@ def load_glove_weights(glove_dir, embd_dim, vocab_size, word_index):
         embeddings_index[word] = coefs
     f.close()
 
-    print('Found %s word vectors.' % len(embeddings_index)) 
+    print('Found %s word vectors.' % len(embeddings_index))
     embedding_matrix = np.zeros((vocab_size, embd_dim))
     print('embed_matrix.shape', embedding_matrix.shape)
     for word, i in word_index.items():
@@ -63,10 +68,12 @@ def load_glove_weights(glove_dir, embd_dim, vocab_size, word_index):
 
     return embedding_matrix
 
+
 def to_var(x):
     if torch.cuda.is_available():
         x = x.cuda()
     return Variable(x)
+
 
 def make_word_vector(data, w2i_w, query_len):
     vec_data = []
@@ -76,8 +83,9 @@ def make_word_vector(data, w2i_w, query_len):
         index_vec += [0] * pad_len
         index_vec = index_vec[:query_len]
         vec_data.append(index_vec)
-    
+
     return to_var(torch.LongTensor(vec_data))
+
 
 def make_char_vector(data, w2i_c, query_len, word_len):
     tmp = torch.zeros(len(data), query_len, word_len).type(torch.LongTensor)
