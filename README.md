@@ -9,5 +9,5 @@ This repo contains the implementation of Bi-Directional Attention Flow (BIDAF) n
 <img src="https://github.com/jojonki/BiDAF/blob/master/BiDAF.png?raw=true">
 
 ## TODO
-- [ ] confirm this model's performanc
+- [ ] confirm this model's performance, currently performance does not increasing. (see [#1](https://github.com/jojonki/BiDAF/issues/1) )
 - [ ] clean main.py
