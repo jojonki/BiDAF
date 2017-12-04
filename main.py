@@ -130,12 +130,14 @@ def train(model, optimizer, n_epoch=10, batch_size=args.batch_size):
             q_word_var = make_word_vector(q, w2i_w, query_sent_maxlen)
             p1, p2 = model(c_char_var, c_word_var, q_char_var, q_word_var)
             loss_p1 = nn.NLLLoss()(p1, a_beg)
-            loss_p2 = nn.NLLLoss()(p2, a_end)
+            # loss_p2 = nn.NLLLoss()(p2, a_end)
             if i % (args.batch_size*20) == 0:
                 now = datetime.datetime.now().strftime('%Y%m%d-%H%M%S')
-                print('[{}] {:.1f}%, loss_p1: {:.3f}, loss_p2: {:.3f}'.format(now, 100*i/len(data), loss_p1.data[0], loss_p2.data[0]))
+                # print('[{}] {:.1f}%, loss_p1: {:.3f}, loss_p2: {:.3f}'.format(now, 100*i/len(data), loss_p1.data[0], loss_p2.data[0]))
+                print('[{}] {:.1f}%, loss_p1: {:.3f}'.format(now, 100*i/len(data), loss_p1.data[0]))
                 # test(model)
-                p1_rank, p2_rank = batch_ranking(p1, p2)
+                # p1_rank, p2_rank = batch_ranking(p1, p2)
+                p1_rank, p2_rank = batch_ranking(p1, p1)
                 for rank in range(1): # N-best, currently 1-best
                     p1_rank_id = p1_rank[0][rank]
                     p2_rank_id = p2_rank[0][rank]
@@ -144,7 +146,8 @@ def train(model, optimizer, n_epoch=10, batch_size=args.batch_size):
                 # TODO calc acc, save every epoch wrt acc
 
             model.zero_grad()
-            (loss_p1+loss_p2).backward()
+            # (loss_p1+loss_p2).backward()
+            loss_p1.backward()
             optimizer.step()
 
         # end eopch
@@ -158,7 +161,7 @@ def train(model, optimizer, n_epoch=10, batch_size=args.batch_size):
 
 
 def test(model, batch_size=args.batch_size+2):
-    model.evaluate()
+    model.eval()
     p1_acc_count = 0
     p2_acc_count = 0
     for i in range(0, len(dev_data)-batch_size, batch_size): # TODO shuffle, last elms
