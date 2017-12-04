@@ -19,6 +19,10 @@ def load_pickle(path):
         return pickle.load(f)
 
 
+def lower_list(str_list):
+    return [str_var.lower() for str_var in str_list]
+
+
 def load_task(dataset_path):
     ret_data = []
     ctx_max_len = 0 # character level length
@@ -45,6 +49,26 @@ def load_task(dataset_path):
                     a_end = [ans['answer_start'] + len(ans['text']) for ans in qa['answers']]
                     ret_data.append((c, cc, qa['id'], q, qc, a, a_beg, a_end)) # TODO context redandancy
     return ret_data, ctx_max_len
+
+
+def load_processed_data(fpath):
+    ctx_max_len = 0 # character level length
+    with open(fpath) as f:
+        lines = f.readlines()
+        data = []
+        for l in lines:
+            c_label, c, q, a, a_txt = l.rstrip().split('\t')
+            if len(c) > ctx_max_len:
+                ctx_max_len = len(c)
+            c, q, a = c.split(' '), q.split(' '), a.split(' ')
+            # if len(c) > 30: continue # TMP
+            c, q = lower_list(c), lower_list(q)
+            cc = [list(w) for w in c]
+            qc = [list(w) for w in q]
+            a = [int(aa) for aa in a]
+            a = [a[0], a[-1]]
+            data.append((c_label, c, cc, q, qc, a, a_txt))
+    return data, ctx_max_len
 
 
 def load_glove_weights(glove_dir, embd_dim, vocab_size, word_index):

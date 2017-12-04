@@ -6,7 +6,7 @@ import datetime
 import torch
 import torch.nn as nn
 
-from process_data import save_pickle, load_pickle, load_task, load_glove_weights
+from process_data import save_pickle, load_pickle, load_task, load_processed_data, load_glove_weights
 from process_data import to_var, make_word_vector, make_char_vector
 from layers.attention_net import AttentionNet
 
@@ -22,63 +22,90 @@ parser.add_argument('--test_mode', type=int, default=0, help='1 for test, or for
 parser.add_argument('--resume', default='./checkpoints/model_best.tar', type=str, metavar='PATH', help='path saved params')
 args = parser.parse_args()
 
-if args.use_pickle == 1:
-    train_data = load_pickle('pickle/train_data.pickle')
-    dev_data = load_pickle('pickle/dev_data.pickle')
-    data = train_data + dev_data
-    ctx_maxlen = 4063 # TODO
+# if args.use_pickle == 1:
+#     train_data = load_pickle('pickle/train_data.pickle')
+#     dev_data = load_pickle('pickle/dev_data.pickle')
+#     data = train_data + dev_data
+#     ctx_maxlen = 4063 # TODO
+#
+#     vocab_w = load_pickle('pickle/vocab_w.pickle')
+#     vocab_c = load_pickle('pickle/vocab_c.pickle')
+#     w2i_w = load_pickle('pickle/w2i_w.pickle')
+#     i2w_w = load_pickle('pickle/i2w_w.pickle')
+#     w2i_c = load_pickle('pickle/w2i_c.pickle')
+#     i2w_c = load_pickle('pickle/i2w_c.pickle')
+# else:
+#     train_data, train_ctx_maxlen = load_task('./dataset/train-v1.1.json')
+#     dev_data, dev_ctx_maxlen = load_task('./dataset/dev-v1.1.json')
+#     data = train_data + dev_data
+#     ctx_maxlen = max(train_ctx_maxlen, dev_ctx_maxlen)
+#     save_pickle(train_data, 'pickle/train_data.pickle')
+#     save_pickle(dev_data, 'pickle/dev_data.pickle')
+#
+#     vocab_w, vocab_c = set(), set()
+#     for ctx_w, ctx_c, q_id, q_w, q_c, answer, _, _ in data:
+#         vocab_w |= set(ctx_w + q_w + answer)
+#         flatten_c = [c for chars in ctx_c for c in chars]
+#         flatten_q = [c for chars in q_c for c in chars]
+#
+#         vocab_c |= set(flatten_c + flatten_q) # TODO
+#     vocab_w = list(sorted(vocab_w))
+#     vocab_c = list(sorted(vocab_c))
+#     w2i_w = dict((w, i) for i, w in enumerate(vocab_w, 0))
+#     i2w_w = dict((i, w) for i, w in enumerate(vocab_w, 0))
+#     w2i_c = dict((c, i) for i, c in enumerate(vocab_c, 0))
+#     i2w_c = dict((i, c) for i, c in enumerate(vocab_c, 0))
+#     save_pickle(vocab_w, 'pickle/vocab_w.pickle')
+#     save_pickle(vocab_c, 'pickle/vocab_c.pickle')
+#     save_pickle(w2i_w, 'pickle/w2i_w.pickle')
+#     save_pickle(w2i_c, 'pickle/w2i_c.pickle')
+#     save_pickle(i2w_w, 'pickle/i2w_w.pickle')
+#     save_pickle(i2w_c, 'pickle/i2w_c.pickle')
 
-    vocab_w = load_pickle('pickle/vocab_w.pickle')
-    vocab_c = load_pickle('pickle/vocab_c.pickle')
-    w2i_w = load_pickle('pickle/w2i_w.pickle')
-    i2w_w = load_pickle('pickle/i2w_w.pickle')
-    w2i_c = load_pickle('pickle/w2i_c.pickle')
-    i2w_c = load_pickle('pickle/i2w_c.pickle')
-else:
-    train_data, train_ctx_maxlen = load_task('./dataset/train-v1.1.json')
-    dev_data, dev_ctx_maxlen = load_task('./dataset/dev-v1.1.json')
-    data = train_data + dev_data
-    ctx_maxlen = max(train_ctx_maxlen, dev_ctx_maxlen)
-    save_pickle(train_data, 'pickle/train_data.pickle')
-    save_pickle(dev_data, 'pickle/dev_data.pickle')
 
-    vocab_w, vocab_c = set(), set()
-    for ctx_w, ctx_c, q_id, q_w, q_c, answer, _, _ in data:
-        vocab_w |= set(ctx_w + q_w + answer)
-        flatten_c = [c for chars in ctx_c for c in chars]
-        flatten_q = [c for chars in q_c for c in chars]
+train_data, train_ctx_maxlen = load_processed_data('./dataset/train.txt')
+dev_data, dev_ctx_maxlen = load_processed_data('./dataset/dev.txt')
+ctx_maxlen = max(train_ctx_maxlen, dev_ctx_maxlen)
+print('train_data', len(train_data))
+print('dev_data', len(dev_data))
+data = train_data + dev_data
+vocab_w, vocab_c = set(), set()
+# data.append((c_label, c, cc, q, qc, a, a_txt))
+for _, c, cc, q, qc, _, _ in data:
+    vocab_w |= set(c + q)
+    flatten_c = [c for chars in cc for c in chars]
+    flatten_q = [c for chars in qc for c in chars]
 
-        vocab_c |= set(flatten_c + flatten_q) # TODO
-    vocab_w = list(sorted(vocab_w))
-    vocab_c = list(sorted(vocab_c))
-    w2i_w = dict((w, i) for i, w in enumerate(vocab_w, 0))
-    i2w_w = dict((i, w) for i, w in enumerate(vocab_w, 0))
-    w2i_c = dict((c, i) for i, c in enumerate(vocab_c, 0))
-    i2w_c = dict((i, c) for i, c in enumerate(vocab_c, 0))
-    save_pickle(vocab_w, 'pickle/vocab_w.pickle')
-    save_pickle(vocab_c, 'pickle/vocab_c.pickle')
-    save_pickle(w2i_w, 'pickle/w2i_w.pickle')
-    save_pickle(w2i_c, 'pickle/w2i_c.pickle')
-    save_pickle(i2w_w, 'pickle/i2w_w.pickle')
-    save_pickle(i2w_c, 'pickle/i2w_c.pickle')
+    vocab_c |= set(flatten_c + flatten_q) # TODO
+vocab_w = list(sorted(vocab_w))
+w2i_w = dict((w, i) for i, w in enumerate(vocab_w, 0))
+i2w_w = dict((i, w) for i, w in enumerate(vocab_w, 0))
+w2i_c = dict((c, i) for i, c in enumerate(vocab_c, 0))
+i2w_c = dict((i, c) for i, c in enumerate(vocab_c, 0))
+print('vocab size', len(vocab_w))
+ctx_sent_maxlen = max([len(d[1]) for d in data])
+query_sent_maxlen = max([len(d[3]) for d in data])
+ctx_word_maxlen = max([len(w) for d in data for w in d[1]])
+query_word_maxlen = max([len(w) for d in data for w in d[3]])
+
 
 vocab_size_w = len(vocab_w)
 vocab_size_c = len(vocab_c)
 
-ctx_sent_maxlen = max([len(c) for c, _, _, _, _, _, _, _ in data])
-query_sent_maxlen = max([len(q) for _, _, _, q, _, _, _, _ in data])
-ctx_word_maxlen = max([len(w) for _, cc, _, _, _, _, _, _ in data for w in cc])
-query_word_maxlen = max([len(w) for _, _, _, _, qc, _, _, _ in data for w in qc])
+# ctx_sent_maxlen = max([len(c) for c, _, _, _, _, _, _, _ in data])
+# query_sent_maxlen = max([len(q) for _, _, _, q, _, _, _, _ in data])
+# ctx_word_maxlen = max([len(w) for _, cc, _, _, _, _, _, _ in data for w in cc])
+# query_word_maxlen = max([len(w) for _, _, _, _, qc, _, _, _ in data for w in qc])
 print('----')
 print('n_train', len(train_data))
 # print('n_dev', len(dev_data))
 print('ctx_maxlen', ctx_maxlen)
 print('vocab_size_w:', vocab_size_w)
-print('vocab_size_c:', vocab_size_c)
+# print('vocab_size_c:', vocab_size_c)
 print('ctx_sent_maxlen:', ctx_sent_maxlen)
 print('query_sent_maxlen:', query_sent_maxlen)
-print('ctx_word_maxlen:', ctx_word_maxlen)
-print('query_word_maxlen:', query_word_maxlen)
+# print('ctx_word_maxlen:', ctx_word_maxlen)
+# print('query_word_maxlen:', query_word_maxlen)
 
 if args.use_pickle == 1:
     glove_embd_w = load_pickle('./pickle/glove_embd_w.pickle')
@@ -92,6 +119,7 @@ args.pre_embd_w = glove_embd_w
 args.filters = [[1, 5]]
 args.out_chs = 100
 args.ans_size = ctx_maxlen
+print('---arguments---')
 print(args)
 
 
@@ -118,12 +146,13 @@ def train(model, optimizer, n_epoch=10, batch_size=args.batch_size):
         for i in range(0, len(train_data)-batch_size, batch_size): # TODO shuffle, last elms
             # print('----------batch', i)
             batch_data = train_data[i:i+batch_size]
-            c = [d[0] for d in batch_data]
-            cc = [d[1] for d in batch_data]
+            # (c_label, c, cc, q, qc, a, a_txt)
+            c = [d[1] for d in batch_data]
+            cc = [d[2] for d in batch_data]
             q = [d[3] for d in batch_data]
             qc = [d[4] for d in batch_data]
-            a_beg = to_var(torch.LongTensor([d[6][0] for d in batch_data]).squeeze()) # TODO: multi target
-            a_end = to_var(torch.LongTensor([d[7][0] for d in batch_data]).squeeze())
+            a_beg = to_var(torch.LongTensor([d[5][0] for d in batch_data]).squeeze()) # TODO: multi target
+            a_end = to_var(torch.LongTensor([d[5][1] for d in batch_data]).squeeze())
             c_char_var = make_char_vector(cc, w2i_c, ctx_sent_maxlen, ctx_word_maxlen)
             c_word_var = make_word_vector(c, w2i_w, ctx_sent_maxlen)
             q_char_var = make_char_vector(qc, w2i_c, query_sent_maxlen, query_word_maxlen)
@@ -160,6 +189,7 @@ def train(model, optimizer, n_epoch=10, batch_size=args.batch_size):
         }, True)
 
 
+# test() {{{
 def test(model, batch_size=args.batch_size+2):
     model.eval()
     p1_acc_count = 0
@@ -194,6 +224,7 @@ def test(model, batch_size=args.batch_size+2):
     N = len(dev_data)
     print('======== Test result ========')
     print('p1 acc: {:.3f}, p2 acc: {:.3f}'.format(p1_acc_count/N, p2_acc_count/N))
+# }}}
 
 
 model = AttentionNet(args)

@@ -25,7 +25,8 @@ class AttentionNet(nn.Module):
 
         self.modeling_layer = nn.GRU(8*self.d, self.d, bidirectional=True, dropout=0.2)
 
-        self.p1_layer = nn.Linear(10*self.d, args.ans_size)
+        # self.p1_layer = nn.Linear(10*self.d, args.ans_size)
+        self.p1_layer = nn.Linear(10*self.d, 1)
         # self.p2_lstm_layer = nn.GRU(2*self.d, self.d, bidirectional=True, dropout=0.2)
         # self.p2_layer = nn.Linear(10*self.d, args.ans_size)
 
@@ -85,8 +86,8 @@ class AttentionNet(nn.Module):
 
         # 5. Output Layer
         G_M = torch.cat((G, M), 2) # (N, T, 10d)
-        G_M = G_M.sum(1) # (N, 10d)
-        p1 = F.log_softmax(self.p1_layer(G_M)) # (N, )
+        # G_M = G_M.sum(1) # (N, 10d)
+        p1 = F.log_softmax(self.p1_layer(G_M).squeeze()) # (N, T)
 
         # M2, _ = self.p2_lstm_layer(M) # (N, T, 2d)
         # G_M2 = torch.cat((G, M2), 2) # (N, T, 10d)
