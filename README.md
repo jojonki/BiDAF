@@ -9,7 +9,7 @@ This repo contains the implementation of Bi-Directional Attention Flow (BIDAF) n
 <img src="https://github.com/jojonki/BiDAF/blob/master/BiDAF.png?raw=true">
 
 ## Requirements
-- PyTorch: 0.2
+- PyTorch: 0.3
 - tqdm (progress bar)
 
 ## TODO
