@@ -45,7 +45,7 @@ class AttentionNet(nn.Module):
         return ctx_embd_out
 
     def forward(self, ctx_c, ctx_w, query_c, query_w):
-        batch_size = ctx_c.size(0)
+        batch_size = ctx_w.size(0)
         T = ctx_w.size(1)   # context sentence length (word level)
         J = query_w.size(1) # query sentence length   (word level)
 
