@@ -70,9 +70,8 @@ def train(model, data, optimizer, n_epoch=10, batch_size=args.batch_size):
     model.train()
     for epoch in range(n_epoch):
         print('---Epoch', epoch)
-        # for i in range(0, len(train_data)-batch_size, batch_size): # TODO shuffle, last elms
         batches = data.get_batches(batch_size, shuffle=True)
-        # for i, (c_word_var, q_word_var, ans_var) in enumerate(tqdm(data)):
+        correct, total = 0, 0
         for i, batch in enumerate(tqdm(batches)):
             ctx_sent_len = max([len(x[0]) for x in batch])
             query_sent_len = max([len(x[1]) for x in batch])
@@ -82,11 +81,12 @@ def train(model, data, optimizer, n_epoch=10, batch_size=args.batch_size):
             p1, p2 = model(None, c_word_var, None, q_word_var)
             loss_p1 = nn.NLLLoss()(p1, a_beg)
             # loss_p2 = nn.NLLLoss()(p2, a_end)
+            correct += torch.sum(a_beg == torch.max(p1, 1)[1]).data[0]
+            total += len(batch)
             if i % (batch_size*20) == 0:
                 now = datetime.datetime.now().strftime('%Y%m%d-%H%M%S')
                 print('[{}] Epoch {} {:.1f}%, loss_p1: {:.3f}'.format(now, epoch, 100*i/len(batches), loss_p1.data[0]))
-                print('Acc:', torch.sum(a_beg == torch.max(p1, 1)[1]).data[0], '/', batch_size)
-                # TODO calc acc, save every epoch wrt acc
+                print('p1 acc: {:.3f}% ({}/{})'.format(100*correct/total, correct, total))
 
             model.zero_grad()
             # (loss_p1+loss_p2).backward()
