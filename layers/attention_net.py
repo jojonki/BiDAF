@@ -67,14 +67,13 @@ class AttentionNet(nn.Module):
         cat_data = cat_data.view(batch_size, -1, 6*self.d) # (N, T*J, 6d)
         S = torch.bmm(cat_data, self.W.expand(batch_size, 6*self.d, 1)) # (N, T*J, 1)
         S = S.view(batch_size, T, J) # (N, T, J), unsqueeze last dim
-        S = F.softmax(S.view(batch_size*T, J)) # (N*T, J)
-        S = S.view(batch_size, T, J) # (N, T, J), unsqueeze last dim
+        S = F.softmax(S, dim=-1) # (N*T, J)
 
         # Context2Query
         c2q = torch.bmm(S, embd_query) # (N, T, 2d) = bmm( (N, T, J), (N, J, 2d) )
         # Query2Context
         # b: attention weights on the context
-        b = F.softmax(torch.max(S, 2)[0]) # (N, T)
+        b = F.softmax(torch.max(S, 2)[0], dim=-1) # (N, T)
         q2c = torch.bmm(b.unsqueeze(1), embd_context) # (N, 1, 2d) = bmm( (N, 1, T), (N, T, 2d) )
         q2c = q2c.repeat(1, T, 1) # (N, T, 2d), tiled T times
 
@@ -87,7 +86,7 @@ class AttentionNet(nn.Module):
         # 5. Output Layer
         G_M = torch.cat((G, M), 2) # (N, T, 10d)
         # G_M = G_M.sum(1) # (N, 10d)
-        p1 = F.log_softmax(self.p1_layer(G_M).squeeze()) # (N, T)
+        p1 = F.log_softmax(self.p1_layer(G_M).squeeze(), dim=-1) # (N, T)
 
         # M2, _ = self.p2_lstm_layer(M) # (N, T, 2d)
         # G_M2 = torch.cat((G, M2), 2) # (N, T, 10d)
