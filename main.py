@@ -8,7 +8,7 @@ import torch
 import torch.nn as nn
 
 from process_data import save_pickle, load_pickle, load_task, load_processed_json, load_glove_weights
-from process_data import to_var, make_word_vector, make_char_vector
+from process_data import to_var, make_vector
 from process_data import DataSet
 from layers.attention_net import AttentionNet
 
@@ -73,12 +73,15 @@ def train(model, data, optimizer, n_epoch=10, batch_size=args.batch_size):
         batches = data.get_batches(batch_size, shuffle=True)
         correct, total = 0, 0
         for i, batch in enumerate(tqdm(batches)):
-            ctx_sent_len = max([len(x[0]) for x in batch])
-            query_sent_len = max([len(x[1]) for x in batch])
-            c_word_var, q_word_var, ans_var = make_word_vector(batch, w2i, ctx_sent_len, query_sent_len)
+            # (c, cc, q, cq, a)
+            ctx_sent_len   = max([len(d[0]) for d in batch])
+            ctx_word_len   = max([len(w) for d in batch for w in d[1]])
+            query_sent_len = max([len(d[2]) for d in batch])
+            query_word_len = max([len(w) for d in batch for w in d[3]])
+            c, cc, q, cq, ans_var = make_vector(batch, w2i, c2i, ctx_sent_len, ctx_word_len, query_sent_len, query_word_len)
             a_beg = ans_var[:, 0]
             # a_end = ans_var[:, 1]
-            p1, p2 = model(None, c_word_var, None, q_word_var)
+            p1, p2 = model(None, c, None, q)
             loss_p1 = nn.NLLLoss()(p1, a_beg)
             # loss_p2 = nn.NLLLoss()(p2, a_end)
             correct += torch.sum(a_beg == torch.max(p1, 1)[1]).data[0]
@@ -102,7 +105,7 @@ def train(model, data, optimizer, n_epoch=10, batch_size=args.batch_size):
         }, True, filename=filename)
 
 
-# test()
+# test() {{{
 def test(model, data, batch_size=args.batch_size):
     model.eval()
     p1_acc_count = 0
@@ -120,6 +123,7 @@ def test(model, data, batch_size=args.batch_size):
 
     print('======== Test result ========')
     print('p1 acc: {:.3f}, p2 acc: {:.3f}'.format(p1_acc_count/total, p2_acc_count/total))
+# }}}
 
 
 model = AttentionNet(args)

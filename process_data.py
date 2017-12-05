@@ -7,6 +7,10 @@ import random
 import torch
 from torch.autograd import Variable
 
+# TODO global
+NULL = "-NULL-"
+UNK = "-UNK-"
+ENT = "-ENT-"
 
 def save_pickle(d, path):
     print('save pickle to', path)
@@ -126,19 +130,7 @@ def to_var(x):
     return Variable(x)
 
 
-# def make_word_vector(data, w2i_w, query_len):
-#     vec_data = []
-#     for sentence in data:
-#         index_vec = [w2i_w[w] for w in sentence]
-#         pad_len = max(0, query_len - len(index_vec))
-#         index_vec += [0] * pad_len
-#         index_vec = index_vec[:query_len]
-#         vec_data.append(index_vec)
-#
-#     return to_var(torch.LongTensor(vec_data))
 def _make_word_vector(sentence, w2i, seq_len):
-    NULL = "-NULL-" # TODO
-    UNK = "-UNK-"
     index_vec = [w2i[w] if w in w2i else w2i[UNK] for w in sentence]
     pad_len = max(0, seq_len - len(index_vec))
     index_vec += [w2i[NULL]] * pad_len
@@ -146,48 +138,54 @@ def _make_word_vector(sentence, w2i, seq_len):
     return index_vec
 
 
-def make_word_vector(batch_data, w2i, ctx_len, query_len):
-    context, query, ans = [], [], []
-    for c, q, a in batch_data:
-        context.append(_make_word_vector(c, w2i, ctx_len))
-        query.append(_make_word_vector(q, w2i, query_len))
-        ans.append(a)
-    return to_var(torch.LongTensor(context)), to_var(torch.LongTensor(query)), to_var(torch.LongTensor(ans))
+def _make_char_vector(data, c2i, sent_len, word_len):
+    tmp = torch.ones(sent_len, word_len).type(torch.LongTensor) # TODO use fills
+    for i, word in enumerate(data):
+        for j, ch in enumerate(word):
+            tmp[i][j] = c2i[ch] if ch in c2i else c2i[UNK]
+    return tmp
 
 
-def make_char_vector(data, w2i_c, query_len, word_len):
-    tmp = torch.zeros(len(data), query_len, word_len).type(torch.LongTensor)
-    for i, words in enumerate(data):
-        for j, word in enumerate(words):
-            for k, ch in enumerate(word):
-                tmp[i][j][k] = w2i_c[ch]
-    return to_var(tmp)
+def make_vector(batch, w2i, c2i, ctx_sent_len, ctx_word_len, query_sent_len, query_word_len):
+    c, cc, q, cq, ans = [], [], [], [], []
+    # c, cc, q, cq, a in batch
+    for d in batch:
+        c.append(_make_word_vector(d[0], w2i, ctx_sent_len))
+        cc.append(_make_char_vector(d[1], c2i, ctx_sent_len, ctx_word_len))
+        q.append(_make_word_vector(d[2], w2i, query_sent_len))
+        cq.append(_make_char_vector(d[3], c2i, query_sent_len, query_word_len))
+        ans.append(d[-1])
+    c = to_var(torch.LongTensor(c))
+    cc = to_var(torch.stack(cc, 0))
+    q = to_var(torch.LongTensor(q))
+    cq = to_var(torch.stack(cq, 0))
+    a = to_var(torch.LongTensor(ans))
+    return c, cc, q, cq, a
 
 
 class DataSet(object):
     def __init__(self, data, shared):
         self.data = data
         self.shared = shared
-        self.NULL = "-NULL-"
-        self.UNK = "-UNK-"
-        self.ENT = "-ENT-"
 
     def size(self):
         return len(self.data['q'])
 
     def get_batches(self, batch_size, shuffle=False):
-        # TODO shuffle
+        # TODO load batch by batch
         batches = []
         for i in range(0, self.size()-batch_size, batch_size): # TODO shuffle, last elms
             batch = []
             for j in range(batch_size):
                 q_idx = i + j
-                rx = self.data['*x'][q_idx]
-                c = self.shared['x'][rx[0]][rx[1]][0]
-                q = self.data['q'][q_idx]
-                a = self.data['y'][q_idx][0] # [[0, 80], [0, 82]] TODO only use 1-best
-                a = (a[0][1], a[1][1]) # (80, 82) <= [[0, 80], [0, 82]]
-                batch.append((c, q, a))
+                rx = self.data['*x'][q_idx] # [article_id, paragraph_id]
+                c  = self.shared['x'][rx[0]][rx[1]][0]
+                cc = self.shared['cx'][rx[0]][rx[1]][0]
+                q  = self.data['q'][q_idx]
+                cq = self.data['cq'][q_idx]
+                a  = self.data['y'][q_idx][0] # [[0, 80], [0, 82]] TODO only use 1-best
+                a  = (a[0][1], a[1][1]) # (80, 82) <= [[0, 80], [0, 82]]
+                batch.append((c, cc, q, cq, a))
             batches.append(batch)
         if shuffle:
             random.shuffle(batches)
@@ -215,12 +213,12 @@ class DataSet(object):
         c2i = {c: i+3 for i, c in
                     enumerate(c for c, ct in char_counter.items()
                               if ct > char_count_th)}
-        w2i[self.NULL] = 0
-        w2i[self.UNK] = 1
-        w2i[self.ENT] = 2
-        c2i[self.NULL] = 0
-        c2i[self.UNK] = 1
-        c2i[self.ENT] = 2
+        w2i[NULL] = 0
+        w2i[UNK] = 1
+        w2i[ENT] = 2
+        c2i[NULL] = 0
+        c2i[UNK] = 1
+        c2i[ENT] = 2
 
         return w2i, c2i
 
