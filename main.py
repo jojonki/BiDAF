@@ -24,23 +24,23 @@ parser.add_argument('--test_mode', type=int, default=0, help='1 for test, or for
 parser.add_argument('--resume', default='./checkpoints/model_best.tar', type=str, metavar='PATH', help='path saved params')
 args = parser.parse_args()
 
-train_data, train_shared = load_processed_json('./dataset/data_train.json', './dataset/shared_train.json')
-train_ds = DataSet(train_data, train_shared)
-ctx_maxlen = train_ds.get_ctx_maxlen()
-ctx_sent_maxlen, query_sent_maxlen = train_ds.get_sent_maxlen()
-ctx_word_maxlen, query_word_maxlen = train_ds.get_word_maxlen()
-w2i, c2i = train_ds.get_word_index()
+train_json, train_shared_json = load_processed_json('./dataset/data_train.json', './dataset/shared_train.json')
+train_data = DataSet(train_json, train_shared_json)
+ctx_maxlen = train_data.get_ctx_maxlen()
+ctx_sent_maxlen, query_sent_maxlen = train_data.get_sent_maxlen()
+# ctx_word_maxlen, query_word_maxlen = train_data.get_word_maxlen()
+w2i, c2i = train_data.get_word_index()
 
 print('----')
-print('n_train', len(train_data))
+print('n_train', train_data.size())
 # print('n_dev', len(dev_data))
 print('ctx_maxlen', ctx_maxlen)
 print('vocab_size_w:', len(w2i))
 print('vocab_size_c:', len(c2i))
 print('ctx_sent_maxlen:', ctx_sent_maxlen)
 print('query_sent_maxlen:', query_sent_maxlen)
-print('ctx_word_maxlen:', ctx_word_maxlen)
-print('query_word_maxlen:', query_word_maxlen)
+# print('ctx_word_maxlen:', ctx_word_maxlen)
+# print('query_word_maxlen:', query_word_maxlen)
 
 if args.use_pickle == 1:
     glove_embd_w = load_pickle('./pickle/glove_embd_w.pickle')
@@ -66,23 +66,17 @@ def save_checkpoint(state, is_best, filename='./checkpoints/checkpoint.pth.tar')
     #     shutil.copyfile(filename, args.resume)
 
 
-# def batch_ranking(p1, p2):
-#     batch_size = p1.size(0)
-#     p1_rank, p2_rank = [], []
-#     for i in range(batch_size):
-#         p1_rank.append(sorted(range(len(p1[i])), key=lambda k: p1[i][k].data[0], reverse=True))
-#         p2_rank.append(sorted(range(len(p2[i])), key=lambda k: p2[i][k].data[0], reverse=True))
-#     return p1_rank, p2_rank
-
-
 def train(model, data, optimizer, n_epoch=10, batch_size=args.batch_size):
     model.train()
     for epoch in range(n_epoch):
         print('---Epoch', epoch)
         # for i in range(0, len(train_data)-batch_size, batch_size): # TODO shuffle, last elms
-        batches = data.get_batches(batch_size)
+        batches = data.get_batches(batch_size, shuffle=True)
+        # for i, (c_word_var, q_word_var, ans_var) in enumerate(tqdm(data)):
         for i, batch in enumerate(tqdm(batches)):
-            c_word_var, q_word_var, ans_var = data.make_word_vector(batch, w2i, ctx_sent_maxlen, query_sent_maxlen)
+            ctx_sent_len = max([len(x[0]) for x in batch])
+            query_sent_len = max([len(x[1]) for x in batch])
+            c_word_var, q_word_var, ans_var = make_word_vector(batch, w2i, ctx_sent_len, query_sent_len)
             a_beg = ans_var[:, 0]
             # a_end = ans_var[:, 1]
             p1, p2 = model(None, c_word_var, None, q_word_var)
@@ -90,7 +84,7 @@ def train(model, data, optimizer, n_epoch=10, batch_size=args.batch_size):
             # loss_p2 = nn.NLLLoss()(p2, a_end)
             if i % (batch_size*20) == 0:
                 now = datetime.datetime.now().strftime('%Y%m%d-%H%M%S')
-                print('[{}] Epoch {} {:.1f}%, loss_p1: {:.3f}'.format(now, epoch, 100*i/data.size(), loss_p1.data[0]))
+                print('[{}] Epoch {} {:.1f}%, loss_p1: {:.3f}'.format(now, epoch, 100*i/len(batches), loss_p1.data[0]))
                 print('Acc:', torch.sum(a_beg == torch.max(p1, 1)[1]).data[0], '/', batch_size)
                 # TODO calc acc, save every epoch wrt acc
 
@@ -157,7 +151,8 @@ for name, param in model.named_parameters():
         print(name, param.data.size())
 
 if args.test_mode == 1:
-    test(model, train_ds)
+    test(model, train_data)
 else:
-    train(model, train_ds, optimizer)
+    train(model, train_data, optimizer)
+    # train(model, train_vec_data, optimizer)
 print('finish')

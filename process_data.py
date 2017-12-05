@@ -126,16 +126,33 @@ def to_var(x):
     return Variable(x)
 
 
-def make_word_vector(data, w2i_w, query_len):
-    vec_data = []
-    for sentence in data:
-        index_vec = [w2i_w[w] for w in sentence]
-        pad_len = max(0, query_len - len(index_vec))
-        index_vec += [0] * pad_len
-        index_vec = index_vec[:query_len]
-        vec_data.append(index_vec)
+# def make_word_vector(data, w2i_w, query_len):
+#     vec_data = []
+#     for sentence in data:
+#         index_vec = [w2i_w[w] for w in sentence]
+#         pad_len = max(0, query_len - len(index_vec))
+#         index_vec += [0] * pad_len
+#         index_vec = index_vec[:query_len]
+#         vec_data.append(index_vec)
+#
+#     return to_var(torch.LongTensor(vec_data))
+def _make_word_vector(sentence, w2i, seq_len):
+    NULL = "-NULL-" # TODO
+    UNK = "-UNK-"
+    index_vec = [w2i[w] if w in w2i else w2i[UNK] for w in sentence]
+    pad_len = max(0, seq_len - len(index_vec))
+    index_vec += [w2i[NULL]] * pad_len
+    index_vec = index_vec[:seq_len]
+    return index_vec
 
-    return to_var(torch.LongTensor(vec_data))
+
+def make_word_vector(batch_data, w2i, ctx_len, query_len):
+    context, query, ans = [], [], []
+    for c, q, a in batch_data:
+        context.append(_make_word_vector(c, w2i, ctx_len))
+        query.append(_make_word_vector(q, w2i, query_len))
+        ans.append(a)
+    return to_var(torch.LongTensor(context)), to_var(torch.LongTensor(query)), to_var(torch.LongTensor(ans))
 
 
 def make_char_vector(data, w2i_c, query_len, word_len):
@@ -195,7 +212,7 @@ class DataSet(object):
         char_counter = self.get_char_counter()
         w2i = {w: i+3 for i, w in enumerate(w for w, ct in word_counter.items()
                                             if ct > word_count_th or (w in word2vec_dict))}
-        c2i = {c: i+2 for i, c in
+        c2i = {c: i+3 for i, c in
                     enumerate(c for c, ct in char_counter.items()
                               if ct > char_count_th)}
         w2i[self.NULL] = 0
@@ -215,18 +232,3 @@ class DataSet(object):
 
     def get_char_counter(self):
         return self.shared['char_counter']
-
-    def _make_word_vector(self, sentence, w2i, seq_len):
-        index_vec = [w2i[w] if w in w2i else w2i[self.UNK] for w in sentence]
-        pad_len = max(0, seq_len - len(index_vec))
-        index_vec += [w2i[self.NULL]] * pad_len
-        index_vec = index_vec[:seq_len]
-        return index_vec
-
-    def make_word_vector(self, batch_data, w2i, ctx_len, query_len):
-        context, query, ans = [], [], []
-        for c, q, a in batch_data:
-            context.append(self._make_word_vector(c, w2i, ctx_len))
-            query.append(self._make_word_vector(q, w2i, query_len))
-            ans.append(a)
-        return to_var(torch.LongTensor(context)), to_var(torch.LongTensor(query)), to_var(torch.LongTensor(ans))
