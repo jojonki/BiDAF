@@ -141,7 +141,7 @@ def test(model, data, batch_size=args.batch_size):
         total += batch_size
 
     print('======== Test result ========')
-    print('p1 acc: {:.3f}, p2 acc: {:.3f}'.format(p1_acc/total, p2_acc/total))
+    print('p1 acc: {:.3f}%, p2 acc: {:.3f}%'.format(100*p1_acc/total, 100*p2_acc/total))
 # }}}
 
 
