@@ -15,15 +15,15 @@ class AttentionNet(nn.Module):
 
         self.char_embd_net = CharEmbedding(args)
         self.word_embd_net = WordEmbedding(args)
-        self.highway_net = Highway(self.embd_size)
-        self.ctx_embd_layer = nn.GRU(self.d, self.d, bidirectional=True, dropout=0.2)
+        self.highway_net = Highway(self.d)
+        self.ctx_embd_layer = nn.LSTM(self.d, self.d, bidirectional=True, dropout=0.2)
 
         self.W = nn.Linear(6*self.d, 1, bias=False)
 
-        self.modeling_layer = nn.GRU(8*self.d, self.d, num_layers=2, bidirectional=True, dropout=0.2)
+        self.modeling_layer = nn.LSTM(8*self.d, self.d, num_layers=2, bidirectional=True, dropout=0.2)
 
         self.p1_layer = nn.Linear(10*self.d, 1, bias=False)
-        self.p2_lstm_layer = nn.GRU(2*self.d, self.d, bidirectional=True, dropout=0.2)
+        self.p2_lstm_layer = nn.LSTM(2*self.d, self.d, bidirectional=True, dropout=0.2)
         self.p2_layer = nn.Linear(10*self.d, 1)
 
     def build_contextual_embd(self, x_c, x_w):
@@ -32,9 +32,8 @@ class AttentionNet(nn.Module):
         # 2. Word Embedding Layer
         word_embd = self.word_embd_net(x_w) # (N, seq_len, embd_size)
         # Highway Networks for 1. and 2.
-        char_embd = self.highway_net(char_embd)
-        word_embd = self.highway_net(word_embd)
         embd = torch.cat((char_embd, word_embd), 2) # (N, seq_len, d=embd_size*2)
+        embd = self.highway_net(embd) # (N, seq_len, d=embd_size*2)
 
         # 3. Contextual  Embedding Layer
         ctx_embd_out, _h = self.ctx_embd_layer(embd)
@@ -78,11 +77,10 @@ class AttentionNet(nn.Module):
 
         # 6. Output Layer
         G_M = torch.cat((G, M), 2) # (N, T, 10d)
-        # G_M = G_M.sum(1) # (N, 10d)
         p1 = F.softmax(self.p1_layer(G_M).squeeze(), dim=-1) # (N, T)
 
         M2, _ = self.p2_lstm_layer(M) # (N, T, 2d)
         G_M2 = torch.cat((G, M2), 2) # (N, T, 10d)
-        p2 = F.log_softmax(self.p2_layer(G_M2).squeeze(), dim=-1) # (N, T)
+        p2 = F.softmax(self.p2_layer(G_M2).squeeze(), dim=-1) # (N, T)
 
         return p1, p2
