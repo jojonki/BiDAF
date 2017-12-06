@@ -15,9 +15,11 @@ This repo contains the implementation of Bi-Directional Attention Flow (BIDAF) n
 ## Setup
 
 ```
-$ ./download.sh
+$ ./download.sh  // download squad dataset
 $ python -m squad.prepro    // build documents
 ```
+
+And you also need to download [glove 6B dataset](http://nlp.stanford.edu/data/glove.6B.zip) under `dataset` directory.
 
 ## Training
 ```
