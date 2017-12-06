@@ -13,7 +13,7 @@ class AttentionNet(nn.Module):
         super(AttentionNet, self).__init__()
         self.embd_size = args.w_embd_size
         self.d = self.embd_size * 2 # word_embedding + char_embedding
-        self.ans_size = args.ans_size
+        # self.d = self.embd_size # only word_embedding
 
         self.char_embd_net = CharEmbedding(args)
         self.word_embd_net = WordEmbedding(args)
@@ -24,30 +24,26 @@ class AttentionNet(nn.Module):
 
         self.modeling_layer = nn.GRU(8*self.d, self.d, bidirectional=True, dropout=0.2)
 
-        self.p1_layer = nn.Linear(10*self.d, args.ans_size)
+        self.p1_layer = nn.Linear(10*self.d, 1)
         self.p2_lstm_layer = nn.GRU(2*self.d, self.d, bidirectional=True, dropout=0.2)
-        self.p2_layer = nn.Linear(10*self.d, args.ans_size)
+        self.p2_layer = nn.Linear(10*self.d, 1)
 
     def build_contextual_embd(self, x_c, x_w):
         # 1. Caracter Embedding Layer
         char_embd = self.char_embd_net(x_c) # (N, seq_len, embd_size)
-        if torch.cuda.is_available():
-            char_embd = char_embd.cuda()
         # 2. Word Embedding Layer
         word_embd = self.word_embd_net(x_w) # (N, seq_len, embd_size)
-        if torch.cuda.is_available():
-            word_embd = word_embd.cuda()
         # Highway Networks for 1. and 2.
         char_embd = self.highway_net(char_embd)
         word_embd = self.highway_net(word_embd)
-        embd = torch.cat((char_embd, word_embd), 2) # (N, seq_len, d==embd_size*2)
+        embd = torch.cat((char_embd, word_embd), 2) # (N, seq_len, d=embd_size*2)
 
         # 3. Contextual  Embedding Layer
         ctx_embd_out, _h = self.ctx_embd_layer(embd)
         return ctx_embd_out
 
-    def forward(self, ctx_c, ctx_w, query_c, query_w):
-        batch_size = ctx_c.size(0)
+    def forward(self, ctx_w, ctx_c, query_w, query_c):
+        batch_size = ctx_w.size(0)
         T = ctx_w.size(1)   # context sentence length (word level)
         J = query_w.size(1) # query sentence length   (word level)
 
@@ -69,16 +65,13 @@ class AttentionNet(nn.Module):
         cat_data = cat_data.view(batch_size, -1, 6*self.d) # (N, T*J, 6d)
         S = torch.bmm(cat_data, self.W.expand(batch_size, 6*self.d, 1)) # (N, T*J, 1)
         S = S.view(batch_size, T, J) # (N, T, J), unsqueeze last dim
-        S = S.view(batch_size*T, J)
-        S = torch.stack([F.softmax(S[i]) for i in range(len(S))], 0) # softmax for each row
-        S = S.view(batch_size, T, J) # (N, T, J), unsqueeze last dim
+        S = F.softmax(S, dim=-1) # (N*T, J)
 
         # Context2Query
         c2q = torch.bmm(S, embd_query) # (N, T, 2d) = bmm( (N, T, J), (N, J, 2d) )
         # Query2Context
         # b: attention weights on the context
-        tmp_b = torch.max(S, 2)[0] # (N, T)
-        b = torch.stack([F.softmax(tmp_b[i]) for i in range(batch_size)], 0) # (N, T), softmax for each row
+        b = F.softmax(torch.max(S, 2)[0], dim=-1) # (N, T)
         q2c = torch.bmm(b.unsqueeze(1), embd_context) # (N, 1, 2d) = bmm( (N, 1, T), (N, T, 2d) )
         q2c = q2c.repeat(1, T, 1) # (N, T, 2d), tiled T times
 
@@ -90,12 +83,11 @@ class AttentionNet(nn.Module):
 
         # 5. Output Layer
         G_M = torch.cat((G, M), 2) # (N, T, 10d)
-        G_M = G_M.sum(1) # (N, 10d)
-        p1 = F.log_softmax(self.p1_layer(G_M)) # (N, )
+        # G_M = G_M.sum(1) # (N, 10d)
+        p1 = F.log_softmax(self.p1_layer(G_M).squeeze(), dim=-1) # (N, T)
 
         M2, _ = self.p2_lstm_layer(M) # (N, T, 2d)
         G_M2 = torch.cat((G, M2), 2) # (N, T, 10d)
-        G_M2 = G_M2.sum(1) # (N, 10d)
-        p2 = F.log_softmax(self.p2_layer(G_M2)) # (N, )
+        p2 = F.log_softmax(self.p2_layer(G_M2).squeeze(), dim=-1) # (N, T)
 
         return p1, p2

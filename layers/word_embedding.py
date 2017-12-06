@@ -1,10 +1,11 @@
+import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
 
 class WordEmbedding(nn.Module):
     '''
-    In : (N, sentence_len, vocab_size_w)
+    In : (N, sentence_len)
     Out: (N, sentence_len, embd_size)
     '''
     def __init__(self, args, is_train_embd=False):
