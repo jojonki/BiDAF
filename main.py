@@ -6,6 +6,7 @@ from tqdm import tqdm
 
 import torch
 import torch.nn as nn
+from torch.autograd import Variable
 
 from process_data import save_pickle, load_pickle, load_task, load_processed_json, load_glove_weights
 from process_data import to_var, make_vector
@@ -66,6 +67,14 @@ def save_checkpoint(state, is_best, filename='./checkpoints/checkpoint.pth.tar')
     #     shutil.copyfile(filename, args.resume)
 
 
+def custom_loss_fn(data, labels):
+    loss = Variable(torch.zeros(1))
+    for d, label in zip(data, labels):
+        loss -= torch.log(d[label]).cpu()
+    loss /= data.size(0)
+    return loss
+
+
 def train(model, data, optimizer, n_epoch=10, batch_size=args.batch_size):
     print('----Train---')
     model.train()
@@ -84,8 +93,10 @@ def train(model, data, optimizer, n_epoch=10, batch_size=args.batch_size):
             a_beg = ans_var[:, 0]
             a_end = ans_var[:, 1] - 1
             p1, p2 = model(c, cc, q, cq)
-            loss_p1 = nn.NLLLoss()(p1, a_beg)
-            loss_p2 = nn.NLLLoss()(p2, a_end)
+            # loss_p1 = nn.NLLLoss()(p1, a_beg)
+            # loss_p2 = nn.NLLLoss()(p2, a_end)
+            loss_p1 = custom_loss_fn(p1, a_beg)
+            loss_p2 = custom_loss_fn(p2, a_end)
             p1_acc += torch.sum(a_beg == torch.max(p1, 1)[1]).data[0]
             p2_acc += torch.sum(a_end == torch.max(p2, 1)[1]).data[0]
             total += len(batch)
@@ -106,6 +117,7 @@ def train(model, data, optimizer, n_epoch=10, batch_size=args.batch_size):
 
             model.zero_grad()
             (loss_p1+loss_p2).backward()
+            # (loss_p1).backward()
             optimizer.step()
 
         # end eopch
@@ -152,7 +164,7 @@ if torch.cuda.is_available():
     model.cuda()
     # model = torch.nn.DataParallel(model, device_ids=[0])
 
-# optimizer = torch.optim.Adadelta(filter(lambda p: p.requires_grad, model.parameters()), lr=0.5, weight_decay=0.999)
+# optimizer = torch.optim.Adadelta(filter(lambda p: p.requires_grad, model.parameters()), lr=0.5) #, weight_decay=0.999)
 # optimizer = torch.optim.Adadelta(filter(lambda p: p.requires_grad, model.parameters()))
 optimizer = torch.optim.Adam(filter(lambda p: p.requires_grad, model.parameters()))
 
