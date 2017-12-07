@@ -148,7 +148,7 @@ def train(model, data, optimizer, ema, n_epoch=20, start_epoch=0, batch_size=arg
 
         # end eopch
         print('======== Epoch {} result ========'.format(epoch))
-        print('p1 acc: {:.3f}, p2 acc: {:.3f}'.format(p1_acc/total, p2_acc/total))
+        print('p1 acc: {:.3f}, p2 acc: {:.3f}'.format(100*p1_acc/total, 100*p2_acc/total))
         filename = '{}/Epoch-{}.model'.format('./checkpoints', epoch)
         save_checkpoint({
             'epoch': epoch + 1,
