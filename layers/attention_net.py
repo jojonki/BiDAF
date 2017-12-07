@@ -16,11 +16,11 @@ class AttentionNet(nn.Module):
         self.char_embd_net = CharEmbedding(args)
         self.word_embd_net = WordEmbedding(args)
         self.highway_net = Highway(self.d)
-        self.ctx_embd_layer = nn.LSTM(self.d, self.d, bidirectional=True, dropout=0.0)
+        self.ctx_embd_layer = nn.LSTM(self.d, self.d, bidirectional=True, dropout=0.2)
 
         self.W = nn.Linear(6*self.d, 1, bias=False)
 
-        self.modeling_layer = nn.LSTM(8*self.d, self.d, num_layers=2, bidirectional=True, dropout=0.0)
+        self.modeling_layer = nn.LSTM(8*self.d, self.d, num_layers=2, bidirectional=True, dropout=0.2)
 
         self.p1_layer = nn.Linear(10*self.d, 1, bias=False)
         # self.p2_lstm_layer = nn.LSTM(2*self.d, self.d, bidirectional=True, dropout=0.2)
