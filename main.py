@@ -15,12 +15,13 @@ from layers.attention_net import AttentionNet
 from ema import EMA
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--batch_size', type=int, default=16, help='input batch size')
+parser.add_argument('--batch_size', type=int, default=64, help='input batch size')
 parser.add_argument('--lr', type=float, default=0.5, help='learning rate, default=0.5')
 parser.add_argument('--ngpu', type=int, default=1, help='number of GPUs to use')
 parser.add_argument('--w_embd_size', type=int, default=100, help='word embedding size')
 parser.add_argument('--c_embd_size', type=int, default=8, help='character embedding size')
 parser.add_argument('--manualSeed', type=int, help='manual seed')
+parser.add_argument('--start_epoch', type=int, default=0, help='resume epoch count, default=0')
 parser.add_argument('--use_pickle', type=int, default=0, help='load dataset from pickles')
 parser.add_argument('--test', type=int, default=0, help='1 for test, or for training')
 parser.add_argument('--resume', default='./checkpoints/model_best.tar', type=str, metavar='PATH', help='path saved params')
@@ -31,6 +32,7 @@ args = parser.parse_args()
 torch.manual_seed(args.seed)
 
 train_json, train_shared_json = load_processed_json('./dataset/data_train.json', './dataset/shared_train.json')
+# train_json, train_shared_json = load_processed_json('./dataset/data_dev.json', './dataset/shared_dev.json')
 train_data = DataSet(train_json, train_shared_json)
 ctx_maxlen = train_data.get_ctx_maxlen()
 ctx_sent_maxlen, query_sent_maxlen = train_data.get_sent_maxlen()
@@ -80,10 +82,10 @@ def custom_loss_fn(data, labels):
     return loss
 
 
-def train(model, data, optimizer, ema, n_epoch=10, batch_size=args.batch_size):
+def train(model, data, optimizer, ema, n_epoch=20, start_epoch=0, batch_size=args.batch_size):
     print('----Train---')
     model.train()
-    for epoch in range(n_epoch):
+    for epoch in range(start_epoch, n_epoch):
         print('---Epoch', epoch)
         batches = data.get_batches(batch_size, shuffle=True)
         p1_acc, p2_acc = 0, 0
@@ -121,7 +123,8 @@ def train(model, data, optimizer, ema, n_epoch=10, batch_size=args.batch_size):
                                      total))
 
             model.zero_grad()
-            (loss_p1+loss_p2).backward()
+            # (loss_p1+loss_p2).backward()
+            loss_p1.backward()
             optimizer.step()
             for name, param in model.named_parameters():
                 if param.requires_grad:
@@ -171,9 +174,10 @@ if torch.cuda.is_available():
     model.cuda()
     # model = torch.nn.DataParallel(model, device_ids=[0])
 
-optimizer = torch.optim.Adadelta(filter(lambda p: p.requires_grad, model.parameters()), lr=0.5)
+# optimizer = torch.optim.Adadelta(filter(lambda p: p.requires_grad, model.parameters()), lr=0.5)
 # optimizer = torch.optim.Adadelta(filter(lambda p: p.requires_grad, model.parameters()))
 # optimizer = torch.optim.Adam(filter(lambda p: p.requires_grad, model.parameters()))
+optimizer = torch.optim.Adamax(filter(lambda p: p.requires_grad, model.parameters()))
 ema = EMA(0.999)
 for name, param in model.named_parameters():
     if param.requires_grad:
@@ -199,5 +203,5 @@ for name, param in model.named_parameters():
 if args.test == 1:
     test(model, train_data)
 else:
-    train(model, train_data, optimizer, ema)
+    train(model, train_data, optimizer, ema, start_epoch=args.start_epoch)
 print('finish')

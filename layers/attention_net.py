@@ -16,15 +16,15 @@ class AttentionNet(nn.Module):
         self.char_embd_net = CharEmbedding(args)
         self.word_embd_net = WordEmbedding(args)
         self.highway_net = Highway(self.d)
-        self.ctx_embd_layer = nn.LSTM(self.d, self.d, bidirectional=True, dropout=0.2)
+        self.ctx_embd_layer = nn.LSTM(self.d, self.d, bidirectional=True, dropout=0.0)
 
         self.W = nn.Linear(6*self.d, 1, bias=False)
 
-        self.modeling_layer = nn.LSTM(8*self.d, self.d, num_layers=2, bidirectional=True, dropout=0.2)
+        self.modeling_layer = nn.LSTM(8*self.d, self.d, num_layers=2, bidirectional=True, dropout=0.0)
 
         self.p1_layer = nn.Linear(10*self.d, 1, bias=False)
-        self.p2_lstm_layer = nn.LSTM(2*self.d, self.d, bidirectional=True, dropout=0.2)
-        self.p2_layer = nn.Linear(10*self.d, 1)
+        # self.p2_lstm_layer = nn.LSTM(2*self.d, self.d, bidirectional=True, dropout=0.2)
+        # self.p2_layer = nn.Linear(10*self.d, 1)
 
     def build_contextual_embd(self, x_c, x_w):
         # 1. Caracter Embedding Layer
@@ -59,7 +59,7 @@ class AttentionNet(nn.Module):
         embd_query_ex = embd_query_ex.expand(shape)     # (N, T, J, 2d)
         a_elmwise_mul_b = torch.mul(embd_context_ex, embd_query_ex) # (N, T, J, 2d)
         cat_data = torch.cat((embd_context_ex, embd_query_ex, a_elmwise_mul_b), 3) # (N, T, J, 6d), [h;u;h◦u]
-        S = self.W(cat_data).squeeze() # (N, T, J)
+        S = self.W(cat_data).view(batch_size, T, J) # (N, T, J)
 
         # Context2Query
         c2q = torch.bmm(F.softmax(S, dim=-1), embd_query) # (N, T, 2d) = bmm( (N, T, J), (N, J, 2d) )
@@ -79,8 +79,9 @@ class AttentionNet(nn.Module):
         G_M = torch.cat((G, M), 2) # (N, T, 10d)
         p1 = F.softmax(self.p1_layer(G_M).squeeze(), dim=-1) # (N, T)
 
-        M2, _ = self.p2_lstm_layer(M) # (N, T, 2d)
-        G_M2 = torch.cat((G, M2), 2) # (N, T, 10d)
-        p2 = F.softmax(self.p2_layer(G_M2).squeeze(), dim=-1) # (N, T)
+        # M2, _ = self.p2_lstm_layer(M) # (N, T, 2d)
+        # G_M2 = torch.cat((G, M2), 2) # (N, T, 10d)
+        # p2 = F.softmax(self.p2_layer(G_M2).squeeze(), dim=-1) # (N, T)
 
-        return p1, p2
+        # return p1, p2
+        return p1, p1

@@ -176,21 +176,22 @@ class DataSet(object):
         return len(self.data['q'])
 
     def get_batches(self, batch_size, shuffle=False):
-        # TODO load batch by batch
         batches = []
-        for i in range(0, self.size()-batch_size, batch_size): # TODO shuffle, last elms
-            batch = []
-            for j in range(batch_size):
-                q_idx = i + j
-                rx = self.data['*x'][q_idx] # [article_id, paragraph_id]
-                c  = lower_list(self.shared['x'][rx[0]][rx[1]][0])
-                cc = self.shared['cx'][rx[0]][rx[1]][0]
-                q  = lower_list(self.data['q'][q_idx])
-                cq = self.data['cq'][q_idx]
-                a  = self.data['y'][q_idx][0] # [[0, 80], [0, 82]] TODO only use 1-best
-                a  = (a[0][1], a[1][1]) # (80, 82) <= [[0, 80], [0, 82]]
-                batch.append((c, cc, q, cq, a))
-            batches.append(batch)
+        batch = []
+        for i in range(self.size()): # TODO shuffle, last elms
+            rx = self.data['*x'][i] # [article_id, paragraph_id]
+            c  = lower_list(self.shared['x'][rx[0]][rx[1]][0])
+            if len(c) > 150: continue
+            cc = self.shared['cx'][rx[0]][rx[1]][0]
+            q  = lower_list(self.data['q'][i])
+            if len(q) < 5 or len(q) > 15: continue
+            cq = self.data['cq'][i]
+            a  = self.data['y'][i][0] # [[0, 80], [0, 82]] TODO only use 1-best
+            a  = (a[0][1], a[1][1]) # (80, 82) <= [[0, 80], [0, 82]]
+            batch.append((c, cc, q, cq, a))
+            if len(batch) == batch_size:
+                batches.append(batch)
+                batch = []
         if shuffle:
             random.shuffle(batches)
         return batches
