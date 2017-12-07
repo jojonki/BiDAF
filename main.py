@@ -24,7 +24,11 @@ parser.add_argument('--manualSeed', type=int, help='manual seed')
 parser.add_argument('--use_pickle', type=int, default=0, help='load dataset from pickles')
 parser.add_argument('--test', type=int, default=0, help='1 for test, or for training')
 parser.add_argument('--resume', default='./checkpoints/model_best.tar', type=str, metavar='PATH', help='path saved params')
+parser.add_argument('--seed', type=int, default=1111, help='random seed')
 args = parser.parse_args()
+
+# Set the random seed manually for reproducibility.
+torch.manual_seed(args.seed)
 
 train_json, train_shared_json = load_processed_json('./dataset/data_train.json', './dataset/shared_train.json')
 train_data = DataSet(train_json, train_shared_json)
@@ -196,5 +200,4 @@ if args.test == 1:
     test(model, train_data)
 else:
     train(model, train_data, optimizer, ema)
-    # train(model, train_vec_data, optimizer)
 print('finish')
