@@ -12,6 +12,7 @@ NULL = "-NULL-"
 UNK = "-UNK-"
 ENT = "-ENT-"
 
+
 def save_pickle(d, path):
     print('save pickle to', path)
     with open(path, mode='wb') as f:
@@ -115,11 +116,14 @@ def load_glove_weights(glove_dir, embd_dim, vocab_size, word_index):
     print('Found %s word vectors.' % len(embeddings_index))
     embedding_matrix = np.zeros((vocab_size, embd_dim))
     print('embed_matrix.shape', embedding_matrix.shape)
+    found_ct = 0
     for word, i in word_index.items():
         embedding_vector = embeddings_index.get(word)
         if embedding_vector is not None:
             # words not found in embedding index will be all-zeros.
             embedding_matrix[i] = embedding_vector
+            found_ct += 1
+    print(found_ct, 'words are found in glove')
 
     return embedding_matrix
 
@@ -179,9 +183,9 @@ class DataSet(object):
             for j in range(batch_size):
                 q_idx = i + j
                 rx = self.data['*x'][q_idx] # [article_id, paragraph_id]
-                c  = self.shared['x'][rx[0]][rx[1]][0]
+                c  = lower_list(self.shared['x'][rx[0]][rx[1]][0])
                 cc = self.shared['cx'][rx[0]][rx[1]][0]
-                q  = self.data['q'][q_idx]
+                q  = lower_list(self.data['q'][q_idx])
                 cq = self.data['cq'][q_idx]
                 a  = self.data['y'][q_idx][0] # [[0, 80], [0, 82]] TODO only use 1-best
                 a  = (a[0][1], a[1][1]) # (80, 82) <= [[0, 80], [0, 82]]
