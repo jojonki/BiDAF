@@ -12,6 +12,7 @@ from process_data import save_pickle, load_pickle, load_task, load_processed_jso
 from process_data import to_var, make_vector
 from process_data import DataSet
 from layers.attention_net import AttentionNet
+from ema import EMA
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--batch_size', type=int, default=16, help='input batch size')
@@ -75,7 +76,7 @@ def custom_loss_fn(data, labels):
     return loss
 
 
-def train(model, data, optimizer, n_epoch=10, batch_size=args.batch_size):
+def train(model, data, optimizer, ema, n_epoch=10, batch_size=args.batch_size):
     print('----Train---')
     model.train()
     for epoch in range(n_epoch):
@@ -117,8 +118,10 @@ def train(model, data, optimizer, n_epoch=10, batch_size=args.batch_size):
 
             model.zero_grad()
             (loss_p1+loss_p2).backward()
-            # (loss_p1).backward()
             optimizer.step()
+            for name, param in model.named_parameters():
+                if param.requires_grad:
+                    param.data = ema(name, param.data)
 
         # end eopch
         print('======== Epoch {} result ========'.format(epoch))
@@ -164,9 +167,13 @@ if torch.cuda.is_available():
     model.cuda()
     # model = torch.nn.DataParallel(model, device_ids=[0])
 
-# optimizer = torch.optim.Adadelta(filter(lambda p: p.requires_grad, model.parameters()), lr=0.5) #, weight_decay=0.999)
+optimizer = torch.optim.Adadelta(filter(lambda p: p.requires_grad, model.parameters()), lr=0.5)
 # optimizer = torch.optim.Adadelta(filter(lambda p: p.requires_grad, model.parameters()))
-optimizer = torch.optim.Adam(filter(lambda p: p.requires_grad, model.parameters()))
+# optimizer = torch.optim.Adam(filter(lambda p: p.requires_grad, model.parameters()))
+ema = EMA(0.999)
+for name, param in model.named_parameters():
+    if param.requires_grad:
+        ema.register(name, param.data)
 
 if os.path.isfile(args.resume):
     print("=> loading checkpoint '{}'".format(args.resume))
@@ -188,6 +195,6 @@ for name, param in model.named_parameters():
 if args.test == 1:
     test(model, train_data)
 else:
-    train(model, train_data, optimizer)
+    train(model, train_data, optimizer, ema)
     # train(model, train_vec_data, optimizer)
 print('finish')
