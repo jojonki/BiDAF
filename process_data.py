@@ -213,17 +213,17 @@ class DataSet(object):
         word2vec_dict = self.get_word2vec()
         word_counter = self.get_word_counter()
         char_counter = self.get_char_counter()
-        w2i = {w: i+3 for i, w in enumerate(w for w, ct in word_counter.items()
+        w2i = {w: i for i, w in enumerate(w for w, ct in word_counter.items()
                                             if ct > word_count_th or (w in word2vec_dict))}
-        c2i = {c: i+3 for i, c in
+        c2i = {c: i for i, c in
                     enumerate(c for c, ct in char_counter.items()
                               if ct > char_count_th)}
-        w2i[NULL] = 0
-        w2i[UNK] = 1
-        w2i[ENT] = 2
-        c2i[NULL] = 0
-        c2i[UNK] = 1
-        c2i[ENT] = 2
+        # w2i[NULL] = 0
+        # w2i[UNK] = 1
+        # w2i[ENT] = 2
+        # c2i[NULL] = 0
+        # c2i[UNK] = 1
+        # c2i[ENT] = 2
 
         return w2i, c2i
 

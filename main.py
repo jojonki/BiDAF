@@ -32,16 +32,32 @@ args = parser.parse_args()
 torch.manual_seed(args.seed)
 
 train_json, train_shared_json = load_processed_json('./dataset/data_train.json', './dataset/shared_train.json')
-# train_json, train_shared_json = load_processed_json('./dataset/data_dev.json', './dataset/shared_dev.json')
+test_json, test_shared_json = load_processed_json('./dataset/data_test.json', './dataset/shared_test.json')
 train_data = DataSet(train_json, train_shared_json)
+test_data = DataSet(test_json, test_shared_json)
 ctx_maxlen = train_data.get_ctx_maxlen()
 ctx_sent_maxlen, query_sent_maxlen = train_data.get_sent_maxlen()
 # ctx_word_maxlen, query_word_maxlen = train_data.get_word_maxlen()
-w2i, c2i = train_data.get_word_index()
+w2i_train, c2i_train = train_data.get_word_index()
+w2i_test, c2i_test = test_data.get_word_index()
+vocabs_w = list(set(list(w2i_train.keys()) + list(w2i_test.keys())))
+w2i = {w : i for i, w in enumerate(vocabs_w, 3)}
+vocabs_c = list(set(list(c2i_train.keys()) + list(c2i_test.keys())))
+c2i = {c : i for i, c in enumerate(vocabs_c, 3)}
+NULL = "-NULL-"
+UNK = "-UNK-"
+ENT = "-ENT-"
+w2i[NULL] = 0
+w2i[UNK] = 1
+w2i[ENT] = 2
+c2i[NULL] = 0
+c2i[UNK] = 1
+c2i[ENT] = 2
+
 
 print('----')
 print('n_train', train_data.size())
-# print('n_dev', len(dev_data))
+print('n_test', test_data.size())
 print('ctx_maxlen', ctx_maxlen)
 print('vocab_size_w:', len(w2i))
 print('vocab_size_c:', len(c2i))
@@ -174,10 +190,10 @@ if torch.cuda.is_available():
     model.cuda()
     # model = torch.nn.DataParallel(model, device_ids=[0])
 
-# optimizer = torch.optim.Adadelta(filter(lambda p: p.requires_grad, model.parameters()), lr=0.5)
+optimizer = torch.optim.Adadelta(filter(lambda p: p.requires_grad, model.parameters()), lr=0.5)
 # optimizer = torch.optim.Adadelta(filter(lambda p: p.requires_grad, model.parameters()))
 # optimizer = torch.optim.Adam(filter(lambda p: p.requires_grad, model.parameters()))
-optimizer = torch.optim.Adamax(filter(lambda p: p.requires_grad, model.parameters()))
+# optimizer = torch.optim.Adamax(filter(lambda p: p.requires_grad, model.parameters()))
 ema = EMA(0.999)
 for name, param in model.named_parameters():
     if param.requires_grad:
@@ -201,7 +217,9 @@ for name, param in model.named_parameters():
         print(name, param.data.size())
 
 if args.test == 1:
+    print('Test mode')
     test(model, train_data)
 else:
+    print('Train mode')
     train(model, train_data, optimizer, ema, start_epoch=args.start_epoch)
 print('finish')
