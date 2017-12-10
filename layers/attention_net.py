@@ -59,7 +59,7 @@ class AttentionNet(nn.Module):
         embd_query_ex = embd_query_ex.expand(shape)     # (N, T, J, 2d)
         a_elmwise_mul_b = torch.mul(embd_context_ex, embd_query_ex) # (N, T, J, 2d)
         cat_data = torch.cat((embd_context_ex, embd_query_ex, a_elmwise_mul_b), 3) # (N, T, J, 6d), [h;u;h◦u]
-        S = self.W(cat_data).squeeze() # (N, T, J)
+        S = self.W(cat_data).view(batch_size, T, J) # (N, T, J)
 
         # Context2Query
         c2q = torch.bmm(F.softmax(S, dim=-1), embd_query) # (N, T, 2d) = bmm( (N, T, J), (N, J, 2d) )

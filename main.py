@@ -9,18 +9,20 @@ import torch.nn as nn
 from torch.autograd import Variable
 
 from process_data import save_pickle, load_pickle, load_task, load_processed_json, load_glove_weights
-from process_data import to_var, make_vector
+from process_data import to_var, to_np, make_vector
 from process_data import DataSet
 from layers.attention_net import AttentionNet
 from ema import EMA
+from logger import Logger
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--batch_size', type=int, default=16, help='input batch size')
+parser.add_argument('--batch_size', type=int, default=32, help='input batch size')
 parser.add_argument('--lr', type=float, default=0.5, help='learning rate, default=0.5')
 parser.add_argument('--ngpu', type=int, default=1, help='number of GPUs to use')
 parser.add_argument('--w_embd_size', type=int, default=100, help='word embedding size')
 parser.add_argument('--c_embd_size', type=int, default=8, help='character embedding size')
 parser.add_argument('--manualSeed', type=int, help='manual seed')
+parser.add_argument('--start_epoch', type=int, default=0, help='resume epoch count, default=0')
 parser.add_argument('--use_pickle', type=int, default=0, help='load dataset from pickles')
 parser.add_argument('--test', type=int, default=0, help='1 for test, or for training')
 parser.add_argument('--resume', default='./checkpoints/model_best.tar', type=str, metavar='PATH', help='path saved params')
@@ -31,15 +33,32 @@ args = parser.parse_args()
 torch.manual_seed(args.seed)
 
 train_json, train_shared_json = load_processed_json('./dataset/data_train.json', './dataset/shared_train.json')
+test_json, test_shared_json = load_processed_json('./dataset/data_test.json', './dataset/shared_test.json')
 train_data = DataSet(train_json, train_shared_json)
+test_data = DataSet(test_json, test_shared_json)
 ctx_maxlen = train_data.get_ctx_maxlen()
 ctx_sent_maxlen, query_sent_maxlen = train_data.get_sent_maxlen()
 # ctx_word_maxlen, query_word_maxlen = train_data.get_word_maxlen()
-w2i, c2i = train_data.get_word_index()
+w2i_train, c2i_train = train_data.get_word_index()
+w2i_test, c2i_test = test_data.get_word_index()
+vocabs_w = sorted(list(set(list(w2i_train.keys()) + list(w2i_test.keys()))))
+w2i = {w : i for i, w in enumerate(vocabs_w, 3)}
+vocabs_c = sorted(list(set(list(c2i_train.keys()) + list(c2i_test.keys()))))
+c2i = {c : i for i, c in enumerate(vocabs_c, 3)}
+NULL = "-NULL-"
+UNK = "-UNK-"
+ENT = "-ENT-"
+w2i[NULL] = 0
+w2i[UNK] = 1
+w2i[ENT] = 2
+c2i[NULL] = 0
+c2i[UNK] = 1
+c2i[ENT] = 2
+
 
 print('----')
 print('n_train', train_data.size())
-# print('n_dev', len(dev_data))
+print('n_test', test_data.size())
 print('ctx_maxlen', ctx_maxlen)
 print('vocab_size_w:', len(w2i))
 print('vocab_size_c:', len(c2i))
@@ -65,11 +84,12 @@ args.ans_size = ctx_sent_maxlen
 # print(args)
 
 
+
 def save_checkpoint(state, is_best, filename='./checkpoints/checkpoint.pth.tar'):
     print('save model!', filename)
     torch.save(state, filename)
     # if is_best:
-    #     shutil.copyfile(filename, args.resume)
+    #     shutil.copyfile(filename, './checkpoints/model.best.tar')
 
 
 def custom_loss_fn(data, labels):
@@ -80,10 +100,12 @@ def custom_loss_fn(data, labels):
     return loss
 
 
-def train(model, data, optimizer, ema, n_epoch=10, batch_size=args.batch_size):
+def train(model, data, optimizer, ema, n_epoch=30, start_epoch=0, batch_size=args.batch_size):
     print('----Train---')
+    label = datetime.datetime.now().strftime('%Y%m%d-%H%M%S')
+    logger = Logger('./logs/' + label)
     model.train()
-    for epoch in range(n_epoch):
+    for epoch in range(start_epoch, n_epoch):
         print('---Epoch', epoch)
         batches = data.get_batches(batch_size, shuffle=True)
         p1_acc, p2_acc = 0, 0
@@ -105,7 +127,7 @@ def train(model, data, optimizer, ema, n_epoch=10, batch_size=args.batch_size):
             p1_acc += torch.sum(a_beg == torch.max(p1, 1)[1]).data[0]
             p2_acc += torch.sum(a_end == torch.max(p2, 1)[1]).data[0]
             total += len(batch)
-            if i % 50 == 0:
+            if (i+1) % 50 == 0:
                 rep_str = '[{}] Epoch {} {:.1f}%, loss_p1: {:.3f}, loss_p2: {:.3f}'
                 print(rep_str.format(datetime.datetime.now().strftime('%Y%m%d-%H%M%S'),
                                      epoch,
@@ -119,8 +141,15 @@ def train(model, data, optimizer, ema, n_epoch=10, batch_size=args.batch_size):
                                      100*p2_acc/total,
                                      p2_acc,
                                      total))
+                for name, param in model.named_parameters():
+                    if param.requires_grad:
+                        offset = epoch * (len(batches) * batch_size)
+                        step = i * batch_size + offset
+                        name = name.replace('.', '/')
+                        logger.histo_summary(name, to_np(param), step)
+                        logger.histo_summary(name + '/grad', to_np(param.grad), step)
 
-            model.zero_grad()
+            optimizer.zero_grad()
             (loss_p1+loss_p2).backward()
             optimizer.step()
             for name, param in model.named_parameters():
@@ -129,7 +158,7 @@ def train(model, data, optimizer, ema, n_epoch=10, batch_size=args.batch_size):
 
         # end eopch
         print('======== Epoch {} result ========'.format(epoch))
-        print('p1 acc: {:.3f}, p2 acc: {:.3f}'.format(p1_acc/total, p2_acc/total))
+        print('p1 acc: {:.3f}, p2 acc: {:.3f}'.format(100*p1_acc/total, 100*p2_acc/total))
         filename = '{}/Epoch-{}.model'.format('./checkpoints', epoch)
         save_checkpoint({
             'epoch': epoch + 1,
@@ -158,6 +187,8 @@ def test(model, data, batch_size=args.batch_size):
         p1_acc += torch.sum(a_beg == torch.max(p1, 1)[1]).data[0]
         p2_acc += torch.sum(a_end == torch.max(p2, 1)[1]).data[0]
         total += batch_size
+        if i % 10 == 0:
+            print('current acc: {:.3f}%'.format(100*p1_acc/total))
 
     print('======== Test result ========')
     print('p1 acc: {:.3f}%, p2 acc: {:.3f}%'.format(100*p1_acc/total, 100*p2_acc/total))
@@ -174,10 +205,7 @@ if torch.cuda.is_available():
 optimizer = torch.optim.Adadelta(filter(lambda p: p.requires_grad, model.parameters()), lr=0.5)
 # optimizer = torch.optim.Adadelta(filter(lambda p: p.requires_grad, model.parameters()))
 # optimizer = torch.optim.Adam(filter(lambda p: p.requires_grad, model.parameters()))
-ema = EMA(0.999)
-for name, param in model.named_parameters():
-    if param.requires_grad:
-        ema.register(name, param.data)
+# optimizer = torch.optim.Adamax(filter(lambda p: p.requires_grad, model.parameters()))
 
 if os.path.isfile(args.resume):
     print("=> loading checkpoint '{}'".format(args.resume))
@@ -190,6 +218,11 @@ if os.path.isfile(args.resume):
 else:
     print("=> no checkpoint found at '{}'".format(args.resume))
 
+ema = EMA(0.999)
+for name, param in model.named_parameters():
+    if param.requires_grad:
+        ema.register(name, param.data)
+
 print(model)
 print('parameters-----')
 for name, param in model.named_parameters():
@@ -197,7 +230,9 @@ for name, param in model.named_parameters():
         print(name, param.data.size())
 
 if args.test == 1:
-    test(model, train_data)
+    print('Test mode')
+    test(model, test_data)
 else:
-    train(model, train_data, optimizer, ema)
+    print('Train mode')
+    train(model, train_data, optimizer, ema, start_epoch=args.start_epoch)
 print('finish')

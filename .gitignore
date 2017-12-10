@@ -5,4 +5,5 @@ dataset
 *.zip
 *.vector_cache
 *.vscode
+*.model
 kernel*

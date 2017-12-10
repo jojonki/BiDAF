@@ -1,6 +1,4 @@
-import torch
 import torch.nn as nn
-import torch.nn.functional as F
 
 
 class WordEmbedding(nn.Module):
@@ -15,4 +13,4 @@ class WordEmbedding(nn.Module):
             self.embedding.weight = nn.Parameter(args.pre_embd_w, requires_grad=is_train_embd)
 
     def forward(self, x):
-        return F.relu(self.embedding(x))
+        return self.embedding(x)

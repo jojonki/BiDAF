@@ -30,6 +30,7 @@ $ python main.py
 
 ## TODO
 - [ ] confirm this model's performance, currently performance does not increasing. (see [#1](https://github.com/jojonki/BiDAF/issues/1) )
+- [ ] Support multi labels
 - [ ] Test. The answer span (k, l) where k ≤ l with the maximum value of (p1k, p2l)
 should be chosen.
 - [ ] clean main.py
