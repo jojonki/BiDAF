@@ -7,7 +7,6 @@ from io import BytesIO
 
 
 class Logger(object):
-    
     def __init__(self, log_dir):
         """Create a summary writer logging to log_dir."""
         print('tensorboard logdir is set to', log_dir)
@@ -24,10 +23,7 @@ class Logger(object):
         img_summaries = []
         for i, img in enumerate(images):
             # Write the image to a string
-            try:
-                s = StringIO()
-            except:
-                s = BytesIO()
+            s = BytesIO()
             scipy.misc.toimage(img).save(s, format="png")
 
             # Create an Image object
@@ -40,7 +36,7 @@ class Logger(object):
         # Create and write Summary
         summary = tf.Summary(value=img_summaries)
         self.writer.add_summary(summary, step)
-        
+
     def histo_summary(self, tag, values, step, bins=1000):
         """Log a histogram of the tensor of values."""
 
