@@ -23,8 +23,8 @@ class AttentionNet(nn.Module):
         self.modeling_layer = nn.LSTM(8*self.d, self.d, num_layers=2, bidirectional=True, dropout=0.2)
 
         self.p1_layer = nn.Linear(10*self.d, 1, bias=False)
-        # self.p2_lstm_layer = nn.LSTM(2*self.d, self.d, bidirectional=True, dropout=0.2)
-        # self.p2_layer = nn.Linear(10*self.d, 1)
+        self.p2_lstm_layer = nn.LSTM(2*self.d, self.d, bidirectional=True, dropout=0.2)
+        self.p2_layer = nn.Linear(10*self.d, 1)
 
     def build_contextual_embd(self, x_c, x_w):
         # 1. Caracter Embedding Layer
@@ -79,9 +79,8 @@ class AttentionNet(nn.Module):
         G_M = torch.cat((G, M), 2) # (N, T, 10d)
         p1 = F.softmax(self.p1_layer(G_M).squeeze(), dim=-1) # (N, T)
 
-        # M2, _ = self.p2_lstm_layer(M) # (N, T, 2d)
-        # G_M2 = torch.cat((G, M2), 2) # (N, T, 10d)
-        # p2 = F.softmax(self.p2_layer(G_M2).squeeze(), dim=-1) # (N, T)
+        M2, _ = self.p2_lstm_layer(M) # (N, T, 2d)
+        G_M2 = torch.cat((G, M2), 2) # (N, T, 10d)
+        p2 = F.softmax(self.p2_layer(G_M2).squeeze(), dim=-1) # (N, T)
 
-        # return p1, p2
-        return p1, p1
+        return p1, p2
