@@ -9,7 +9,7 @@ import torch.nn as nn
 from torch.autograd import Variable
 
 from process_data import save_pickle, load_pickle, load_task, load_processed_json, load_glove_weights
-from process_data import to_var, make_vector
+from process_data import to_var, to_np, make_vector
 from process_data import DataSet
 from layers.attention_net import AttentionNet
 from ema import EMA
@@ -84,9 +84,6 @@ args.ans_size = ctx_sent_maxlen
 # print(args)
 
 
-def to_np(x):
-    return x.data.cpu().numpy()
-
 
 def save_checkpoint(state, is_best, filename='./checkpoints/checkpoint.pth.tar'):
     print('save model!', filename)
@@ -103,7 +100,7 @@ def custom_loss_fn(data, labels):
     return loss
 
 
-def train(model, data, optimizer, ema, n_epoch=20, start_epoch=0, batch_size=args.batch_size):
+def train(model, data, optimizer, ema, n_epoch=30, start_epoch=0, batch_size=args.batch_size):
     print('----Train---')
     label = datetime.datetime.now().strftime('%Y%m%d-%H%M%S')
     logger = Logger('./logs/' + label)
