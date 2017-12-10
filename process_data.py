@@ -105,22 +105,21 @@ def load_processed_json(fpath_data, fpath_shared):
 
 def load_glove_weights(glove_dir, embd_dim, vocab_size, word_index):
     embeddings_index = {}
-    f = open(os.path.join(glove_dir, 'glove.6B.' + str(embd_dim) + 'd.txt'))
-    for line in f:
-        values = line.split()
-        word = values[0]
-        coefs = np.asarray(values[1:], dtype='float32')
-        embeddings_index[word] = coefs
-    f.close()
+    with open(os.path.join(glove_dir, 'glove.6B.' + str(embd_dim) + 'd.txt')) as f:
+        for line in f:
+            values = line.split()
+            word = values[0]
+            vector = np.array(values[1:], dtype='float32')
+            embeddings_index[word] = vector
 
-    print('Found %s word vectors.' % len(embeddings_index))
+    print('Found %s word vectors in glove.' % len(embeddings_index))
     embedding_matrix = np.zeros((vocab_size, embd_dim))
     print('embed_matrix.shape', embedding_matrix.shape)
     found_ct = 0
     for word, i in word_index.items():
         embedding_vector = embeddings_index.get(word)
+        # words not found in embedding index will be all-zeros.
         if embedding_vector is not None:
-            # words not found in embedding index will be all-zeros.
             embedding_matrix[i] = embedding_vector
             found_ct += 1
     print(found_ct, 'words are found in glove')
@@ -132,6 +131,10 @@ def to_var(x):
     if torch.cuda.is_available():
         x = x.cuda()
     return Variable(x)
+
+
+def to_np(x):
+    return x.data.cpu().numpy()
 
 
 def _make_word_vector(sentence, w2i, seq_len):
@@ -181,10 +184,10 @@ class DataSet(object):
         for i in range(self.size()): # TODO shuffle, last elms
             rx = self.data['*x'][i] # [article_id, paragraph_id]
             c  = lower_list(self.shared['x'][rx[0]][rx[1]][0])
-            if len(c) > 150: continue
+            # if len(c) > 150: continue
             cc = self.shared['cx'][rx[0]][rx[1]][0]
             q  = lower_list(self.data['q'][i])
-            if len(q) < 5 or len(q) > 15: continue
+            # if len(q) < 5 or len(q) > 15: continue
             cq = self.data['cq'][i]
             a  = self.data['y'][i][0] # [[0, 80], [0, 82]] TODO only use 1-best
             a  = (a[0][1], a[1][1]) # (80, 82) <= [[0, 80], [0, 82]]
