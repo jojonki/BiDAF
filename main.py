@@ -16,7 +16,7 @@ from ema import EMA
 from logger import Logger
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--batch_size', type=int, default=32, help='input batch size')
+parser.add_argument('--batch_size', type=int, default=20, help='input batch size')
 parser.add_argument('--lr', type=float, default=0.5, help='learning rate, default=0.5')
 parser.add_argument('--ngpu', type=int, default=1, help='number of GPUs to use')
 parser.add_argument('--w_embd_size', type=int, default=100, help='word embedding size')
@@ -202,9 +202,9 @@ if torch.cuda.is_available():
     model.cuda()
     # model = torch.nn.DataParallel(model, device_ids=[0])
 
-optimizer = torch.optim.Adadelta(filter(lambda p: p.requires_grad, model.parameters()), lr=0.5)
+# optimizer = torch.optim.Adadelta(filter(lambda p: p.requires_grad, model.parameters()), lr=0.5)
 # optimizer = torch.optim.Adadelta(filter(lambda p: p.requires_grad, model.parameters()))
-# optimizer = torch.optim.Adam(filter(lambda p: p.requires_grad, model.parameters()))
+optimizer = torch.optim.Adam(filter(lambda p: p.requires_grad, model.parameters()))
 # optimizer = torch.optim.Adamax(filter(lambda p: p.requires_grad, model.parameters()))
 
 if os.path.isfile(args.resume):
