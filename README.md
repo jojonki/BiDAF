@@ -33,4 +33,5 @@ $ python main.py
 - [ ] Support multi labels
 - [ ] Test. The answer span (k, l) where k ≤ l with the maximum value of (p1k, p2l)
 should be chosen.
+- [ ] Imple EM and F1 score
 - [ ] clean main.py
