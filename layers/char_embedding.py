@@ -15,7 +15,6 @@ class CharEmbedding(nn.Module):
         # nn.Conv1d(in_channels, out_channels, kernel_size, stride=1, padding=0, ...
         self.conv = nn.ModuleList([nn.Conv2d(1, args.out_chs, (f[0], f[1])) for f in args.filters])
         self.dropout = nn.Dropout(.2)
-        self.fc1 = nn.Linear(args.out_chs*len(args.filters), 1)
 
     def forward(self, x):
         # x: (N, seq_len, word_len)
