@@ -27,6 +27,10 @@ $ python main.py --help
 $ python main.py
 ```
 
+## Test
+```
+$ python main.py --resume ./checkpoints/Epoch-12.model --test 1
+```
 
 ## TODO
 - [ ] confirm this model's performance, currently performance does not increasing. (see [#1](https://github.com/jojonki/BiDAF/issues/1) )
