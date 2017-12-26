@@ -6,9 +6,9 @@ from layers.word_embedding import WordEmbedding
 from layers.highway import Highway
 
 
-class AttentionNet(nn.Module):
+class BiDAF(nn.Module):
     def __init__(self, args):
-        super(AttentionNet, self).__init__()
+        super(BiDAF, self).__init__()
         self.embd_size = args.w_embd_size
         self.d = self.embd_size * 2 # word_embedding + char_embedding
         # self.d = self.embd_size # only word_embedding

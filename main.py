@@ -11,7 +11,7 @@ from torch.autograd import Variable
 from process_data import save_pickle, load_pickle, load_task, load_processed_json, load_glove_weights
 from process_data import to_var, to_np, make_vector
 from process_data import DataSet
-from layers.attention_net import AttentionNet
+from layers.bidaf import BiDAF
 from ema import EMA
 from logger import Logger
 
@@ -195,7 +195,7 @@ def test(model, data, batch_size=args.batch_size):
 # }}}
 
 
-model = AttentionNet(args)
+model = BiDAF(args)
 
 if torch.cuda.is_available():
     print('use cuda')
